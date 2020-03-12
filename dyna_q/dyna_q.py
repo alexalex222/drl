@@ -71,7 +71,7 @@ class DynaQ(object):
         self.n_states = self.env.observation_space.shape[0]
         self.n_actions = self.env.action_space.n
         self.env_a_shape = 0 if isinstance(self.env.action_space.sample(), int) \
-			else self.env.action_space.sample().shape
+            else self.env.action_space.sample().shape
         self.Q_H1Size = 64
         self.Q_H2Size = 32
         self.env_H1Size = 64
