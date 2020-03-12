@@ -6,6 +6,8 @@ import numpy as np
 from copy import deepcopy
 import utils
 from utils.replay_buffers import PriorExpReplay
+from networks.network_heads import VanillaNet
+from networks.network_bodies import FCBody
 
 
 class Q_Net(nn.Module):
@@ -39,7 +41,8 @@ class DQN(object):
 		self.env_a_shape = self.config['env_a_shape']
 		self.H1Size = 64
 		self.H2Size = 32
-		self.eval_net = Q_Net(self.n_states, self.n_actions, self.H1Size, self.H2Size)
+		# self.eval_net = Q_Net(self.n_states, self.n_actions, self.H1Size, self.H2Size)
+		self.eval_net = VanillaNet(self.n_actions, FCBody(self.n_states, hidden_units=(self.H1Size, self.H2Size)))
 		self.target_net = deepcopy(self.eval_net)
 		self.eval_net = self.eval_net.to(self.device)
 		self.target_net = self.target_net.to(self.device)
