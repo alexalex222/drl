@@ -1,6 +1,7 @@
 from torch import distributions
 from networks.network_bodies import *
 from utils.torch_utils import tensor
+from utils.torch_utils import weights_init_normal
 # from utils.config import Config
 import gpytorch
 
@@ -280,3 +281,30 @@ class GPModel(gpytorch.models.ApproximateGP):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
+class EnvModel(nn.Module):
+    def __init__(self, n_states, n_actions, h1_size, h2_size):
+        super(EnvModel, self).__init__()
+        self.n_states = n_states
+        self.fc1 = nn.Linear(n_states + n_actions, h1_size)
+        self.fc2 = nn.Linear(h1_size, h2_size)
+        self.statePrime = nn.Linear(h2_size, n_states)
+        self.reward = nn.Linear(h2_size, 1)
+        self.done = nn.Linear(h2_size, 1)
+
+        # initialize layers
+        weights_init_normal([self.fc1, self.fc2, self.statePrime, self.reward, self.done], 0.0, 0.1)
+
+    def forward(self, x):
+        h = self.fc1(x)
+        h = F.relu(h)
+        h = self.fc2(h)
+        h = F.relu(h)
+
+        next_state_value = self.statePrime(h) + x[:, :self.n_states]
+        reward_value = self.reward(h)
+        done_value = self.done(h)
+        done_value = torch.sigmoid(done_value)
+
+        return next_state_value, reward_value, done_value

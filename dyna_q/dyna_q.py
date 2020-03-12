@@ -5,60 +5,8 @@ import numpy as np
 from copy import deepcopy
 import utils
 from networks.network_bodies import FCBody
-from networks.network_heads import VanillaNet
+from networks.network_heads import VanillaNet, EnvModel
 import gym
-
-
-class Q_Net(nn.Module):
-    def __init__(self, N_STATES, N_ACTIONS, H1Size, H2Size):
-        super(Q_Net, self).__init__()
-        # build network layers
-        self.fc1 = nn.Linear(N_STATES, H1Size)
-        self.fc2 = nn.Linear(H1Size, H2Size)
-        self.out = nn.Linear(H2Size, N_ACTIONS)
-
-        # initialize layers
-        utils.torch_utils.weights_init_normal([self.fc1, self.fc2, self.out], 0.0, 0.1)
-
-    # utils.weights_init_xavier([self.fc1, self.fc2, self.out])
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        actions_value = self.out(x)
-
-        return actions_value
-
-
-class EnvModel(nn.Module):
-    def __init__(self, N_STATES, N_ACTIONS, H1Size, H2Size):
-        super(EnvModel, self).__init__()
-        # build network layers
-        self.fc1 = nn.Linear(N_STATES + N_ACTIONS, H1Size)
-        self.fc2 = nn.Linear(H1Size, H2Size)
-        self.statePrime = nn.Linear(H2Size, N_STATES)
-        self.reward = nn.Linear(H2Size, 1)
-        self.done = nn.Linear(H2Size, 1)
-
-        # initialize layers
-        utils.torch_utils.weights_init_normal([self.fc1, self.fc2, self.statePrime, self.reward, self.done], 0.0, 0.1)
-
-    # utils.weights_init_xavier([self.fc1, self.fc2, self.statePrime, self.reward, self.done])
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-
-        statePrime_value = self.statePrime(x)
-        reward_value = self.reward(x)
-        done_value = self.done(x)
-        done_value = torch.sigmoid(done_value)
-
-        return statePrime_value, reward_value, done_value
 
 
 class DynaQ(object):
@@ -76,7 +24,6 @@ class DynaQ(object):
         self.Q_H2Size = 32
         self.env_H1Size = 64
         self.env_H2Size = 32
-        # self.eval_net = Q_Net(self.n_states, self.n_actions, self.Q_H1Size, self.Q_H2Size)
         self.eval_net = VanillaNet(self.n_actions, FCBody(self.n_states, hidden_units=(self.Q_H1Size, self.Q_H2Size)))
         self.target_net = deepcopy(self.eval_net)
         self.env_model = EnvModel(self.n_states, 1, self.env_H1Size, self.env_H2Size)
