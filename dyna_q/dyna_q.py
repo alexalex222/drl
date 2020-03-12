@@ -58,6 +58,7 @@ class EnvModel(nn.Module):
 class DynaQ(object):
 	def __init__(self, config):
 		self.config = config
+		self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 		self.n_states = self.config['n_states']
 		self.n_actions = self.config['n_actions']
 		self.env_a_shape = self.config['env_a_shape']
@@ -68,6 +69,9 @@ class DynaQ(object):
 		self.eval_net = Q_Net(self.n_states, self.n_actions, self.Q_H1Size, self.Q_H2Size)
 		self.target_net = deepcopy(self.eval_net)
 		self.env_model = EnvModel(self.n_states, 1, self.env_H1Size, self.env_H2Size)
+		self.eval_net = self.eval_net.to(self.device)
+		self.target_net = self.target_net.to(self.device)
+		self.env_model = self.env_model.to(self.device)
 		self.learn_step_counter = 0                                     							# for target updating
 		self.memory_counter = 0                                         							# for storing memory
 		self.memory = np.zeros((self.config['memory']['memory_capacity'], self.n_states * 2 + 3))     		# initialize memory
@@ -77,11 +81,11 @@ class DynaQ(object):
 		#self.loss_func = nn.SmoothL1Loss()
 
 	def choose_action(self, x, EPSILON):
-		x = torch.unsqueeze(torch.tensor(x, dtype=torch.float32), 0)
+		x = torch.unsqueeze(torch.tensor(x, dtype=torch.float32, device=self.device), 0)
 		# input only one sample
 		if np.random.uniform() > EPSILON:   # greedy
 			actions_value = self.eval_net.forward(x)
-			action = torch.max(actions_value, 1)[1].data.numpy()
+			action = torch.max(actions_value, 1)[1].cpu().data.numpy()
 			action = action[0] if self.env_a_shape == 0 else action.reshape(self.env_a_shape)  	# return the argmax index
 		else:   # random
 			action = np.random.randint(0, self.n_actions)
@@ -106,12 +110,12 @@ class DynaQ(object):
 		b_memory = self.memory[sample_index, :]
 
 		b_in = torch.tensor(np.hstack((b_memory[:, :self.n_states], b_memory[:, self.n_states:self.n_states+1])),
-							dtype=torch.float32
+							dtype=torch.float32, device=self.device
 						    )
 		# b_y = Variable(torch.FloatTensor(np.hstack((b_memory[:, -self.n_states:], b_memory[:, self.n_states+1:self.n_states+2], b_memory[:, self.n_states+2:self.n_states+3]))))
-		b_y_s = torch.tensor(b_memory[:, -self.n_states:], dtype=torch.float32)
-		b_y_r = torch.tensor(b_memory[:, self.n_states+1:self.n_states+2], dtype=torch.float32)
-		b_y_d = torch.tensor(b_memory[:, self.n_states+2:self.n_states+3], dtype=torch.float32)
+		b_y_s = torch.tensor(b_memory[:, -self.n_states:], dtype=torch.float32, device=self.device)
+		b_y_r = torch.tensor(b_memory[:, self.n_states+1:self.n_states+2], dtype=torch.float32, device=self.device)
+		b_y_d = torch.tensor(b_memory[:, self.n_states+2:self.n_states+3], dtype=torch.float32, device=self.device)
 
 		b_s_, b_r, b_d = self.env_model(b_in)
 		# loss = self.loss_func(torch.cat(b_out, 1), b_y)
@@ -140,24 +144,25 @@ class DynaQ(object):
 		# sample batch transitions
 		sample_index = np.random.choice(min(self.config['memory']['memory_capacity'], self.memory_counter), self.config['batch_size'])
 		b_memory = self.memory[sample_index, :]
-		b_s = torch.tensor(b_memory[:, :self.n_states], dtype=torch.float32)
-		b_a = torch.tensor(b_memory[:, self.n_states:self.n_states+1].astype(int), dtype=torch.long)
-		b_r = torch.tensor(b_memory[:, self.n_states+1:self.n_states+2], dtype=torch.float32)
-		b_d = torch.tensor(1 - b_memory[:, self.n_states+2:self.n_states+3], dtype=torch.float32)
-		b_s_ = torch.tensor(b_memory[:, -self.n_states:], dtype=torch.float32)
+		b_s = torch.tensor(b_memory[:, :self.n_states], dtype=torch.float32, device=self.device)
+		b_a = torch.tensor(b_memory[:, self.n_states:self.n_states+1].astype(int), dtype=torch.long, device=self.device)
+		b_r = torch.tensor(b_memory[:, self.n_states+1:self.n_states+2], dtype=torch.float32, device=self.device)
+		b_d = torch.tensor(1 - b_memory[:, self.n_states+2:self.n_states+3], dtype=torch.float32, device=self.device)
+		b_s_ = torch.tensor(b_memory[:, -self.n_states:], dtype=torch.float32, device=self.device)
 
 		# q_eval w.r.t the action in experience
 		q_eval = self.eval_net(b_s).gather(1, b_a)  # shape (batch, 1)
 		
 		if self.config['double_q_model']:
 			q_eval_next = self.eval_net(b_s_)
-			q_argmax = np.argmax(q_eval_next.data.numpy(), axis=1)
+			q_argmax = np.argmax(q_eval_next.cpu().data.numpy(), axis=1)
 			q_next = self.target_net(b_s_)
-			q_next_numpy = q_next.data.numpy()
+			q_next_numpy = q_next.cpu().data.numpy()
 			q_update = np.zeros((self.config['batch_size'], 1))
 			for i in range(self.config['batch_size']):
 				q_update[i] = q_next_numpy[i, q_argmax[i]]
-			q_target = b_r + torch.tensor(self.config['discount'] * q_update, dtype=torch.float32) * b_d
+			q_target = b_r + torch.tensor(self.config['discount'] * q_update,
+										  dtype=torch.float32, device=self.device) * b_d
 		else:
 			q_next = self.target_net(b_s_).detach()     # detach from graph, don't backpropagate
 			q_target = b_r + self.config['discount'] * q_next.max(1)[0].view(self.config['batch_size'], 1) * b_d  # shape (batch, 1)
@@ -195,27 +200,30 @@ class DynaQ(object):
 
 		b_a = np.random.randint(self.n_actions, size=b_s.shape[0])
 		b_a = np.reshape(b_a, (b_a.shape[0], 1))
-		b_in = torch.tensor(np.hstack((b_s, np.array(b_a))), dtype=torch.float32)
+		b_in = torch.tensor(np.hstack((b_s, np.array(b_a))), dtype=torch.float32, device=self.device)
 
-		statePrime_value, reward_value, done_value = self.env_model(b_in)
-		b_s = torch.tensor(b_s, dtype=torch.float32)
-		b_a = torch.tensor(b_a, dtype=torch.long)
-		b_d = torch.tensor(1 - done_value.data.numpy(), dtype=torch.float32)
-		b_s_ = torch.tensor(statePrime_value.data.numpy(), dtype=torch.float32)
-		b_r = torch.tensor(reward_value.data.numpy(), dtype=torch.float32)
+		
+		with torch.no_grad():
+			statePrime_value, reward_value, done_value = self.env_model(b_in)
+		b_s = torch.tensor(b_s, dtype=torch.float32, device=self.device)
+		b_a = torch.tensor(b_a, dtype=torch.long, device=self.device)
+		b_d = torch.tensor(1 - done_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
+		b_s_ = torch.tensor(statePrime_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
+		b_r = torch.tensor(reward_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
 
 		# q_eval w.r.t the action in experience
 		q_eval = self.eval_net(b_s).gather(1, b_a)  # shape (batch, 1)
 		
 		if self.config['double_q_model']:
 			q_eval_next = self.eval_net(b_s_)
-			q_argmax = np.argmax(q_eval_next.data.numpy(), axis=1)
+			q_argmax = np.argmax(q_eval_next.cpu().data.numpy(), axis=1)
 			q_next = self.target_net(b_s_)
-			q_next_numpy = q_next.data.numpy()
+			q_next_numpy = q_next.cpu().data.numpy()
 			q_update = np.zeros((self.config['batch_size'], 1))
 			for i in range(self.config['batch_size']):
 				q_update[i] = q_next_numpy[i, q_argmax[i]]
-			q_target = b_r + torch.tensor(self.config['discount'] * q_update, dtype=torch.float32) * b_d
+			q_target = b_r + torch.tensor(self.config['discount'] * q_update,
+										  dtype=torch.float32, device=self.device) * b_d
 		else:
 			q_next = self.target_net(b_s_).detach()     # detach from graph, don't backpropagate
 			q_target = b_r + self.config['discount'] * q_next.max(1)[0].view(self.config['batch_size'], 1) * b_d  # shape (batch, 1)
