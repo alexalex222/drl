@@ -1,6 +1,7 @@
+from torch import distributions
 from networks.network_bodies import *
 from utils.torch_utils import tensor
-from utils.config import Config
+# from utils.config import Config
 import gpytorch
 
 
@@ -9,7 +10,7 @@ class VanillaNet(nn.Module):
         super(VanillaNet, self).__init__()
         self.fc_head = layer_init(nn.Linear(body.feature_dim, output_dim))
         self.body = body
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, x):
         phi = self.body(tensor(x))
@@ -23,7 +24,7 @@ class DuelingNet(nn.Module):
         self.fc_value = layer_init(nn.Linear(body.feature_dim, 1))
         self.fc_advantage = layer_init(nn.Linear(body.feature_dim, action_dim))
         self.body = body
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, x, to_numpy=False):
         phi = self.body(tensor(x))
@@ -40,7 +41,7 @@ class CategoricalNet(nn.Module):
         self.action_dim = action_dim
         self.num_atoms = num_atoms
         self.body = body
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, x):
         phi = self.body(tensor(x))
@@ -57,7 +58,7 @@ class QuantileNet(nn.Module):
         self.action_dim = action_dim
         self.num_quantiles = num_quantiles
         self.body = body
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, x):
         phi = self.body(tensor(x))
@@ -75,7 +76,7 @@ class OptionCriticNet(nn.Module):
         self.num_options = num_options
         self.action_dim = action_dim
         self.body = body
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, x):
         phi = self.body(tensor(x))
@@ -119,7 +120,7 @@ class DeterministicActorCriticNet(nn.Module):
 
         self.actor_opt = actor_opt_fn(self.actor_params + self.phi_params)
         self.critic_opt = critic_opt_fn(self.critic_params + self.phi_params)
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, obs):
         phi = self.feature(obs)
@@ -162,7 +163,7 @@ class GaussianActorCriticNet(nn.Module):
         self.phi_params = list(self.phi_body.parameters())
 
         self.std = nn.Parameter(torch.zeros(action_dim), requires_grad=True)
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, obs, action=None):
         obs = tensor(obs)
@@ -171,7 +172,7 @@ class GaussianActorCriticNet(nn.Module):
         phi_v = self.critic_body(phi)
         mean = torch.tanh(self.fc_action(phi_a))
         v = self.fc_critic(phi_v)
-        dist = torch.distributions.Normal(mean, F.softplus(self.std))
+        dist = distributions.Normal(mean, F.softplus(self.std))
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action).sum(-1).unsqueeze(-1)
@@ -191,9 +192,12 @@ class CategoricalActorCriticNet(nn.Module):
                  actor_body=None,
                  critic_body=None):
         super(CategoricalActorCriticNet, self).__init__()
-        if phi_body is None: phi_body = DummyBody(state_dim)
-        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
-        if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
+        if phi_body is None:
+            phi_body = DummyBody(state_dim)
+        if actor_body is None:
+            actor_body = DummyBody(phi_body.feature_dim)
+        if critic_body is None:
+            critic_body = DummyBody(phi_body.feature_dim)
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
@@ -204,7 +208,7 @@ class CategoricalActorCriticNet(nn.Module):
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
 
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, obs, action=None):
         obs = tensor(obs)
@@ -213,7 +217,7 @@ class CategoricalActorCriticNet(nn.Module):
         phi_v = self.critic_body(phi)
         logits = self.fc_action(phi_a)
         v = self.fc_critic(phi_v)
-        dist = torch.distributions.Categorical(logits=logits)
+        dist = distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1)
@@ -243,11 +247,11 @@ class TD3Net(nn.Module):
 
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body_1.parameters()) + list(self.fc_critic_1.parameters()) + \
-                             list(self.critic_body_2.parameters()) + list(self.fc_critic_2.parameters())
+            list(self.critic_body_2.parameters()) + list(self.fc_critic_2.parameters())
 
         self.actor_opt = actor_opt_fn(self.actor_params)
         self.critic_opt = critic_opt_fn(self.critic_params)
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, obs):
         obs = tensor(obs)
@@ -270,10 +274,9 @@ class GPModel(gpytorch.models.ApproximateGP):
         super(GPModel, self).__init__(variational_strategy)
         self.mean_module = gpytorch.means.ConstantMean()
         self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
-        self.to(Config.DEVICE)
+        # self.to(Config.DEVICE)
 
     def forward(self, x):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
