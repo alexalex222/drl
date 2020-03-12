@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
+import gym
 import torch.nn.functional as F
 import numpy as np
 from copy import deepcopy
@@ -35,10 +35,14 @@ class Q_Net(nn.Module):
 class DQN(object):
 	def __init__(self, config):
 		self.config = config
+		self.epsilon = self.config['exploration']['init_epsilon']
+		self.total_steps = 0
+		self.env = gym.make(config['env_id'])
 		self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-		self.n_states = self.config['n_states']
-		self.n_actions = self.config['n_actions']
-		self.env_a_shape = self.config['env_a_shape']
+		self.n_states = self.env.observation_space.shape[0]
+		self.n_actions = self.env.action_space.n
+		self.env_a_shape = 0 if isinstance(self.env.action_space.sample(), int) \
+			else self.env.action_space.sample().shape
 		self.H1Size = 64
 		self.H2Size = 32
 		# self.eval_net = Q_Net(self.n_states, self.n_actions, self.H1Size, self.H2Size)
@@ -58,10 +62,10 @@ class DQN(object):
 		self.l1_loss = nn.L1Loss(reduce=False)
 		#self.mse_loss = nn.SmoothL1Loss()
 
-	def choose_action(self, x, EPSILON):
+	def choose_action(self, x):
 		x = torch.unsqueeze(torch.tensor(x, dtype=torch.float32, device=self.device), 0)
 		# input only one sample
-		if np.random.uniform() > EPSILON:   # greedy
+		if np.random.uniform() > self.epsilon:   # greedy
 			actions_value = self.eval_net.forward(x)
 			action = torch.max(actions_value, 1)[1].cpu().data.numpy()
 			action = action[0] if self.env_a_shape == 0 else action.reshape(self.env_a_shape)  # return the argmax index
@@ -166,3 +170,48 @@ class DQN(object):
 		self.optimizer.step()
 
 		return loss.item()
+
+	def train_agent(self, max_episodes):
+		rwd_dqn = []
+		for i_episode in range(max_episodes):
+			s = self.env.reset()
+			ep_r = 0
+			timestep = 0
+			while True:
+				self.total_steps += 1
+				# decay exploration
+				self.epsilon = utils.schedule.epsilon_decay(
+					eps=self.epsilon,
+					step=self.total_steps,
+					config=self.config['exploration']
+				)
+
+				# env.render()
+				a = self.choose_action(s)
+
+				# take action
+				s_, r, done, info = self.env.step(a)
+				ep_r += r
+
+				# modify the reward
+				if self.config['modify_reward']:
+					r = utils.normalizer.modify_rwd(self.config['env_id'], s_)
+
+				# store current transition
+				self.store_transition(s, a, r, s_, done)
+				timestep += 1
+
+				# start update policy when memory has enough exps
+				if self.memory_counter > self.config['first_update']:
+					self.learn()
+
+				if done:
+					prefix = 'DDQN' if self.config['double_q_model'] else 'DQN'
+					if self.config['memory']['prioritized']:
+						prefix += '-PER'
+					print(prefix + '| Ep: ', i_episode + 1, '| timestep: ', timestep, '| Ep_r: ', ep_r)
+					rwd_dqn.append(ep_r)
+					break
+
+				s = s_
+		return rwd_dqn
