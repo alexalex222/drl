@@ -88,7 +88,7 @@ if __name__ == '__main__':
 		del dqn_agent
 
 		# incrementally calculate mean and variance
-		rwd_dqn = utils.moving_avg(rwd_dqn, winWidth)
+		rwd_dqn = utils.misc.moving_avg(rwd_dqn, winWidth)
 		tmp_rwd = np.array(rwd_dqn)
 		pre_rwd = aver_rwd_dqn
 		aver_rwd_dqn = aver_rwd_dqn + (tmp_rwd - aver_rwd_dqn)/float(exp+1)
