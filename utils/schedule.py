@@ -53,3 +53,41 @@ class ExponentialSchedule:
         self.current_step += 1
         self.current = self.end + (self.start - self.end) * math.exp(-1. * self.current_step / self.eps_decay)
         return val
+
+
+def epsilon_decay(eps, step, config):
+    if config['type'] == 'exponential':
+        return epsilon_decay_exp(
+            eps=eps,
+            min_eps=config['min_epsilon'],
+            decay=config['decay_eps']
+        )
+
+    if config['type'] == 'expo_step':
+        return epsilon_decay_exp_step(
+            step=step,
+            ini_eps=config['init_epsilon'],
+            min_eps=config['min_epsilon'],
+            lamda=0.001
+        )
+
+    if config['type'] == 'linear_anneal':
+        return epsilon_linear_anneal(
+            eps=eps,
+            ini_eps=config['init_epsilon'],
+            min_eps=config['min_epsilon'],
+            timesteps=config['decay_steps']
+        )
+
+
+def epsilon_decay_exp(eps, min_eps, decay=0.99):
+    return max(eps*decay, min_eps)
+
+
+def epsilon_decay_exp_step(step, ini_eps, min_eps, lamda=0.001):
+    return min_eps + (ini_eps - min_eps) * math.exp(-lamda * step)
+
+
+def epsilon_linear_anneal(eps, ini_eps, min_eps, timesteps=10000):
+    delta = (ini_eps - min_eps)/float(timesteps)
+    return max(eps - delta, min_eps)

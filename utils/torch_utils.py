@@ -7,6 +7,7 @@
 from .config import *
 import torch
 import os
+import torch.nn.init as weight_init
 
 
 def select_device(gpu_id):
@@ -204,3 +205,16 @@ class Grads:
             grad.add(g)
         grad.mul(1 / len(self.grads))
         return grad
+
+
+def weights_init_normal(layers, mean, std):
+    for layer in layers:
+        layer.weight.data.normal_(mean, std)
+
+
+def weights_init_xavier(layers, uniform=True):
+    for layer in layers:
+        if uniform:
+            weight_init.xavier_uniform(layer.weight)
+        else:
+            weight_init.xavier_normal(layer.weight)

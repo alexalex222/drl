@@ -22,7 +22,7 @@ def run_steps(agent):
         if config.save_interval and not agent.total_steps % config.save_interval:
             agent.save('data/%s-%s-%d' % (agent_name, config.tag, agent.total_steps))
         if config.log_interval and not agent.total_steps % config.log_interval:
-            agent.logger.info('steps %d, %.2f steps/s' % (agent.total_steps,  (time.time() - t0) / config.log_interval))
+            agent.logger.info('steps %d, %.2f steps/s' % (agent.total_steps, (time.time() - t0) / config.log_interval))
             t0 = time.time()
         if config.eval_interval and not agent.total_steps % config.eval_interval:
             agent.eval_episodes()
@@ -85,3 +85,16 @@ def translate(pattern):
 def split(a, n):
     k, m = divmod(len(a), n)
     return (a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n))
+
+
+def moving_avg(pointList, winWidth):
+    cumsum, moving_aves = [0], []
+    pointList = [pointList[0]] * (winWidth - 1) + pointList
+
+    for i, x in enumerate(pointList, 1):
+        cumsum.append(cumsum[i - 1] + x)
+        if i >= winWidth:
+            moving_ave = (cumsum[i] - cumsum[i - winWidth]) / winWidth
+            moving_aves.append(moving_ave)
+
+    return moving_aves

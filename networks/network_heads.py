@@ -1,4 +1,4 @@
-from network.network_bodies import *
+from networks.network_bodies import *
 from utils.torch_utils import tensor
 from utils.config import Config
 import gpytorch

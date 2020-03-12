@@ -96,3 +96,14 @@ class ImageNormalizer(RescaleNormalizer):
 class SignNormalizer(BaseNormalizer):
     def __call__(self, x):
         return np.sign(x)
+
+
+def modify_rwd(env, s):
+    if env == 'CartPole-v0':
+        x, _, theta, _ = s
+        r1 = (2.4 - abs(x)) / 2.4 - 0.8
+        r2 = (0.20944 - abs(theta)) / 0.20944 - 0.5
+        return r1 + r2
+    if env == 'MountainCar-v0':
+        pos, vel = s
+        return abs(pos - (-0.5))
