@@ -15,7 +15,6 @@ winWidth = 100
 writeCSV = True
 savePlot = True
 
-env_id = 'CartPole-v0'
 config_file = 'ddqn_cartpole.json'
 
 

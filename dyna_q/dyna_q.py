@@ -6,6 +6,7 @@ from copy import deepcopy
 import utils
 from networks.network_bodies import FCBody
 from networks.network_heads import VanillaNet
+import gym
 
 
 class Q_Net(nn.Module):
@@ -63,10 +64,14 @@ class EnvModel(nn.Module):
 class DynaQ(object):
     def __init__(self, config):
         self.config = config
+        self.epsilon = self.config['exploration']['init_epsilon']
+        self.total_steps = 0
+        self.env = gym.make(config['env_id'])
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.n_states = self.config['n_states']
-        self.n_actions = self.config['n_actions']
-        self.env_a_shape = self.config['env_a_shape']
+        self.n_states = self.env.observation_space.shape[0]
+        self.n_actions = self.env.action_space.n
+        self.env_a_shape = 0 if isinstance(self.env.action_space.sample(), int) \
+			else self.env.action_space.sample().shape
         self.Q_H1Size = 64
         self.Q_H2Size = 32
         self.env_H1Size = 64
@@ -87,10 +92,10 @@ class DynaQ(object):
 
     # self.loss_func = nn.SmoothL1Loss()
 
-    def choose_action(self, x, EPSILON):
+    def choose_action(self, x):
         x = torch.unsqueeze(torch.tensor(x, dtype=torch.float32, device=self.device), 0)
         # input only one sample
-        if np.random.uniform() > EPSILON:  # greedy
+        if np.random.uniform() > self.epsilon:  # greedy
             actions_value = self.eval_net.forward(x)
             action = torch.max(actions_value, 1)[1].cpu().data.numpy()
             action = action[0] if self.env_a_shape == 0 else action.reshape(self.env_a_shape)  # return the argmax index
@@ -250,3 +255,54 @@ class DynaQ(object):
         # for param in self.eval_net.parameters():
         # 	param.grad.data.clamp_(-0.5, 0.5)
         self.optimizer.step()
+
+    def train_agent(self, max_episodes):
+        rwd_dyna = []
+        for i_episode in range(max_episodes):
+            s = self.env.reset()
+            ep_r = 0
+            timestep = 0
+            while True:
+                self.total_steps += 1
+
+                # decay exploration
+                self.epsilon = utils.schedule.epsilon_decay(
+                    eps=self.epsilon,
+                    step=self.total_steps,
+                    config=self.config['exploration']
+                )
+
+                # env.render()
+                a = self.choose_action(s)
+
+                # take action
+                s_, r, done, info = self.env.step(a)
+                ep_r += r
+
+                # modify the reward
+                if self.config['modify_reward']:
+                    r = utils.normalizer.modify_rwd(self.config['env_id'], s_)
+
+                # store current transition
+                self.store_transition(s, a, r, s_, done)
+                timestep += 1
+
+                # start update policy when memory has enough exps
+                if self.memory_counter > self.config['first_update']:
+                    self.learn()
+
+                # start update env model when memory has enough exps
+                if self.memory_counter > self.config['batch_size']:
+                    self.update_env_model()
+
+                # planning through generated exps
+                for _ in range(self.config['simulation_rounds']):
+                    self.simulate_learn()
+
+                if done:
+                    print('Dyna-Q | Ep: ', i_episode + 1, '| timestep: ', timestep, '| Ep_r: ', ep_r)
+                    rwd_dyna.append(ep_r)
+                    break
+                s = s_
+
+        return rwd_dyna
