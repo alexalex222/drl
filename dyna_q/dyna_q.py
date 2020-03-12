@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import numpy as np
 from copy import deepcopy
 import utils
+from networks.network_bodies import FCBody
+from networks.network_heads import VanillaNet
 
 
 class Q_Net(nn.Module):
@@ -69,7 +71,8 @@ class DynaQ(object):
         self.Q_H2Size = 32
         self.env_H1Size = 64
         self.env_H2Size = 32
-        self.eval_net = Q_Net(self.n_states, self.n_actions, self.Q_H1Size, self.Q_H2Size)
+        # self.eval_net = Q_Net(self.n_states, self.n_actions, self.Q_H1Size, self.Q_H2Size)
+        self.eval_net = VanillaNet(self.n_actions, FCBody(self.n_states, hidden_units=(self.Q_H1Size, self.Q_H2Size)))
         self.target_net = deepcopy(self.eval_net)
         self.env_model = EnvModel(self.n_states, 1, self.env_H1Size, self.env_H2Size)
         self.eval_net = self.eval_net.to(self.device)
