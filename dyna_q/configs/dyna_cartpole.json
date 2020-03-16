@@ -18,5 +18,7 @@
 	"target_update_freq": 500,
 	"first_update": 1000,
 	"modify_reward": true,
-	"simulation_rounds": 2
+	"simulation_rounds": 2,
+	"cart_position_limit": 2.4,
+	"pole_angle_limit": 0.20943950666
 }

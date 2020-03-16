@@ -14,6 +14,7 @@ class DynaQ(object):
         self.config = config
         self.epsilon = self.config['exploration']['init_epsilon']
         self.total_steps = 0
+        self.current_episode_steps = 0
         self.env = gym.make(config['env_id'])
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.n_states = self.env.observation_space.shape[0]
@@ -170,11 +171,18 @@ class DynaQ(object):
 
         self.env_model.eval()
         with torch.no_grad():
-            statePrime_value, reward_value, done_value = self.env_model(b_in)
+            state_prime_value, reward_value, done_value = self.env_model(b_in)
+
+        # check if the episode is done
+        # x, _, theta, _ = state_prime_value.cpu().data.numpy()
+        x = state_prime_value[:, [0]]
+        theta = state_prime_value[:, [2]]
+        done_value = (torch.abs(x) > self.config['cart_position_limit']) | (torch.abs(theta) > self.config['pole_angle_limit'])
+
         b_s = torch.tensor(b_s, dtype=torch.float32, device=self.device)
         b_a = torch.tensor(b_a, dtype=torch.long, device=self.device)
         b_d = torch.tensor(1 - done_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
-        b_s_ = torch.tensor(statePrime_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
+        b_s_ = torch.tensor(state_prime_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
         b_r = torch.tensor(reward_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
 
         # q_eval w.r.t the action in experience
@@ -208,7 +216,7 @@ class DynaQ(object):
         for i_episode in range(max_episodes):
             s = self.env.reset()
             ep_r = 0
-            timestep = 0
+            self.current_episode_steps = 0
             while True:
                 self.total_steps += 1
 
@@ -232,7 +240,7 @@ class DynaQ(object):
 
                 # store current transition
                 self.store_transition(s, a, r, s_, done)
-                timestep += 1
+                self.current_episode_steps += 1
 
                 # start update policy when memory has enough exps
                 if self.memory_counter > self.config['first_update']:
@@ -247,7 +255,7 @@ class DynaQ(object):
                     self.simulate_learn()
 
                 if done:
-                    print('Dyna-Q | Ep: ', i_episode + 1, '| timestep: ', timestep, '| Ep_r: ', ep_r)
+                    print('Dyna-Q | Ep: ', i_episode + 1, '| timestep: ', self.current_episode_steps, '| Ep_r: ', ep_r)
                     rwd_dyna.append(ep_r)
                     break
                 s = s_

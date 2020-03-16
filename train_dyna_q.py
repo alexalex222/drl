@@ -11,7 +11,7 @@ import utils
 
 
 # Hyper Parameters
-MaxEpisodes = 300
+MaxEpisodes = 1000
 num_of_runs = 5
 winWidth = 100
 writeCSV = True
