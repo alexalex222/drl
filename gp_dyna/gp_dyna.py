@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import gpytorch
 import numpy as np
 from copy import deepcopy
 import utils
 from networks.network_bodies import FCBody
-from networks.network_heads import VanillaNet, EnvModel
+from networks.network_heads import VanillaNet, MultitaskGPModel
 import gym
 
 
-class DynaQ(object):
+class GpDynaQ(object):
     def __init__(self, config):
         self.config = config
         self.epsilon = self.config['exploration']['init_epsilon']
@@ -23,11 +24,13 @@ class DynaQ(object):
             else self.env.action_space.sample().shape
         self.Q_H1Size = 64
         self.Q_H2Size = 32
-        self.env_H1Size = 64
-        self.env_H2Size = 32
         self.eval_net = VanillaNet(self.n_actions, FCBody(self.n_states, hidden_units=(self.Q_H1Size, self.Q_H2Size)))
         self.target_net = deepcopy(self.eval_net)
-        self.env_model = EnvModel(self.n_states, 1, self.env_H1Size, self.env_H2Size)
+        self.env_model = MultitaskGPModel(induce_point_size=100,
+                                          output_dim=self.n_states + 1,
+                                          input_dim=self.n_states + 1).to(self.device)
+        self.likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=self.n_states + 1).to(self.device)
+        self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.env_model, num_data=10000)
         self.eval_net = self.eval_net.to(self.device)
         self.target_net = self.target_net.to(self.device)
         self.env_model = self.env_model.to(self.device)
@@ -35,7 +38,9 @@ class DynaQ(object):
         self.memory_counter = 0  # for storing memory
         self.memory = np.zeros((self.config['memory']['memory_capacity'], self.n_states * 2 + 3))  # initialize memory
         self.optimizer = torch.optim.Adam(self.eval_net.parameters(), lr=self.config['learning_rate'])
-        self.env_opt = torch.optim.Adam(self.env_model.parameters(), lr=0.01)
+        self.env_opt = torch.optim.Adam([{'params': self.env_model.parameters()},
+                                         {'params': self.likelihood.parameters()},
+                                         ], lr=0.01)
         self.loss_func = nn.MSELoss()
 
     # self.loss_func = nn.SmoothL1Loss()
@@ -70,32 +75,24 @@ class DynaQ(object):
                                         self.config['batch_size'])
         b_memory = self.memory[sample_index, :]
 
+        # previous state + action
         b_in = torch.tensor(np.hstack((b_memory[:, :self.n_states], b_memory[:, self.n_states:self.n_states + 1])),
                             dtype=torch.float32, device=self.device
                             )
-        # b_y = Variable(torch.FloatTensor(np.hstack((b_memory[:, -self.n_states:], b_memory[:, self.n_states+1:self.n_states+2], b_memory[:, self.n_states+2:self.n_states+3]))))
-        b_y_s = torch.tensor(b_memory[:, -self.n_states:], dtype=torch.float32, device=self.device)
-        b_y_r = torch.tensor(b_memory[:, self.n_states + 1:self.n_states + 2], dtype=torch.float32, device=self.device)
-        b_y_d = torch.tensor(b_memory[:, self.n_states + 2:self.n_states + 3], dtype=torch.float32, device=self.device)
+
+        # next state + reward
+        b_out = torch.tensor(np.hstack((b_memory[:, -self.n_states:], b_memory[:, self.n_states + 1:self.n_states + 2])),
+                             dtype=torch.float32, device=self.device
+                             )
 
         self.env_model.train()
-        b_s_, b_r, b_d = self.env_model(b_in)
-        # loss = self.loss_func(torch.cat(b_out, 1), b_y)
-        loss_s = self.loss_func(b_s_, b_y_s)
-        loss_r = self.loss_func(b_r, b_y_r)
-        loss_d = self.loss_func(b_d, b_y_d)
-
+        b_preds = self.env_model(b_in)
+        loss = -self.mll(b_preds, b_out)
         self.env_opt.zero_grad()
-        loss_s.backward(retain_graph=True)
+        loss.backward(retain_graph=True)
         self.env_opt.step()
 
-        self.env_opt.zero_grad()
-        loss_r.backward(retain_graph=True)
-        self.env_opt.step()
 
-        self.env_opt.zero_grad()
-        loss_d.backward()
-        self.env_opt.step()
 
     def learn(self):
         # target parameter update
@@ -170,20 +167,20 @@ class DynaQ(object):
         b_in = torch.tensor(np.hstack((b_s, np.array(b_a))), dtype=torch.float32, device=self.device)
 
         self.env_model.eval()
-        with torch.no_grad():
-            state_prime_value, reward_value, done_value = self.env_model(b_in)
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            b_preds = self.likelihood(self.env_model(b_in)).mean
 
         # check if the episode is done
         # x, _, theta, _ = state_prime_value.cpu().data.numpy()
-        x = state_prime_value[:, [0]]
-        theta = state_prime_value[:, [2]]
+        x = b_preds[:, [0]]
+        theta = b_preds[:, [2]]
         done_value = (torch.abs(x) > self.config['cart_position_limit']) | (torch.abs(theta) > self.config['pole_angle_limit'])
 
         b_s = torch.tensor(b_s, dtype=torch.float32, device=self.device)
         b_a = torch.tensor(b_a, dtype=torch.long, device=self.device)
         b_d = torch.tensor(1 - done_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
-        b_s_ = torch.tensor(state_prime_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
-        b_r = torch.tensor(reward_value.cpu().data.numpy(), dtype=torch.float32, device=self.device)
+        b_s_ = torch.tensor(b_preds[:, :self.n_states].cpu().data.numpy(), dtype=torch.float32, device=self.device)
+        b_r = torch.tensor(b_preds[:, self.n_states:self.n_states+1].cpu().data.numpy(), dtype=torch.float32, device=self.device)
 
         # q_eval w.r.t the action in experience
         q_eval = self.eval_net(b_s).gather(1, b_a)  # shape (batch, 1)

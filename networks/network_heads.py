@@ -283,6 +283,41 @@ class GPModel(gpytorch.models.ApproximateGP):
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 
+class MultitaskGPModel(gpytorch.models.ApproximateGP):
+    def __init__(self, induce_point_size, output_dim, input_dim):
+        # We have to mark the CholeskyVariationalDistribution as batch
+        # so that we learn a variational distribution for each task
+        inducing_points = torch.randn(output_dim, induce_point_size, input_dim)
+        variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(
+            num_inducing_points=induce_point_size, batch_shape=torch.Size([output_dim])
+        )
+
+        # We have to wrap the VariationalStrategy in a MultitaskVariationalStrategy
+        # so that the output will be a MultitaskMultivariateNormal rather than a batch output
+        variational_strategy = gpytorch.variational.MultitaskVariationalStrategy(
+            gpytorch.variational.VariationalStrategy(
+                self, inducing_points, variational_distribution, learn_inducing_locations=True
+            ), num_tasks=output_dim
+        )
+
+        super().__init__(variational_strategy)
+
+        # The mean and covariance modules should be marked as batch
+        # so we learn a different set of hyperparameters
+        self.mean_module = gpytorch.means.ConstantMean(batch_shape=torch.Size([output_dim]))
+        self.covar_module = gpytorch.kernels.ScaleKernel(
+            gpytorch.kernels.RBFKernel(batch_shape=torch.Size([output_dim])),
+            batch_shape=torch.Size([output_dim])
+        )
+
+    def forward(self, x):
+        # The forward function should be written as if we were dealing with each output
+        # dimension in batch
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
 class EnvModel(nn.Module):
     def __init__(self, n_states, n_actions, h1_size, h2_size):
         super(EnvModel, self).__init__()
