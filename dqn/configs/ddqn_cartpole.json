@@ -17,5 +17,5 @@
 	"discount": 0.99,
 	"target_update_freq": 500,
 	"first_update": 1000,
-	"modify_reward": false
+	"modify_reward": true
 }
