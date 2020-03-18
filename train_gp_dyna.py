@@ -1,6 +1,4 @@
-import os, sys
-
-import time
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import json
@@ -49,7 +47,7 @@ if __name__ == '__main__':
         df = pd.DataFrame(data=dict([(key, pd.Series(value)) for key, value in data.items()]),
                           index=range(0, MaxEpisodes),
                           columns=['episodes', 'rewards', 'variances'])
-        df.to_csv('results/logs/gp_dyna_q_steps_{}_run_{}.csv'.format(MaxEpisodes, num_of_runs))
+        df.to_csv('results/logs/gp_dyna_q_{}_run_{}.csv'.format(config['env_id'], datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
 
     # Save reward plot
     if savePlot:
@@ -62,5 +60,5 @@ if __name__ == '__main__':
         ax.set_ylabel('Average Rewards')
         ax.legend(loc='upper left')
         ax.grid()
-        fig.savefig('results/figures/gp_dyna_q_{}.png'.format(int(time.time())))
+        fig.savefig('results/figures/gp_dyna_q_{}_{}.png'.format(config['env_id'], datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
         plt.close(fig)

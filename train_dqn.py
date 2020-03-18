@@ -1,4 +1,4 @@
-import time
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import json
@@ -15,7 +15,7 @@ winWidth = 100
 writeCSV = True
 savePlot = True
 
-config_file = 'ddqn_cartpole.json'
+config_file = 'ddqn_acrobot.json'
 
 
 if __name__ == '__main__':
@@ -50,14 +50,14 @@ if __name__ == '__main__':
 			columns=['episodes', 'rewards', 'variances'])
 		if config['double_q_model']:
 			if config['memory']['prioritized']:
-				df.to_csv('results/logs/ddqn_pri_steps_{}_run_{}.csv'.format(MaxEpisodes, num_of_runs))
+				df.to_csv('results/logs/ddqn_pri_{}_run_{}.csv'.format(config['env_id'], num_of_runs))
 			else:
-				df.to_csv('results/logs/ddqn_steps_{}_run_{}.csv'.format(MaxEpisodes, num_of_runs))
+				df.to_csv('results/logs/ddqn_{}_run_{}.csv'.format(config['env_id'], num_of_runs))
 		else:
 			if config['memory']['prioritized']:
-				df.to_csv('results/logs/dqn_pri_steps_{}_run_{}.csv'.format(MaxEpisodes, num_of_runs))
+				df.to_csv('results/logs/dqn_pri_{}_run_{}.csv'.format(config['env_id'], num_of_runs))
 			else:
-				df.to_csv('results/logs/dqn_steps_{}_run_{}.csv'.format(MaxEpisodes, num_of_runs))
+				df.to_csv('results/logs/dqn_{}_run_{}.csv'.format(config['env_id'], num_of_runs))
 
 	# Save reward plot
 	fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -70,13 +70,17 @@ if __name__ == '__main__':
 	ax.grid()
 	if config['double_q_model']:
 		if config['memory']['prioritized']:
-			fig.savefig('results/figures/ddqn_pri_{}.png'.format(int(time.time())))
+			fig.savefig('results/figures/ddqn_pri_{}_{}.png'.format(config['env_id'],
+																	datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
 		else:
-			fig.savefig('results/figures/ddqn_{}.png'.format(int(time.time())))
+			fig.savefig('results/figures/ddqn_{}_{}.png'.format(config['env_id'],
+																datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
 	else:
 		if config['memory']['prioritized']:
-			fig.savefig('results/figures/dqn_pri_{}.png'.format(int(time.time())))
+			fig.savefig('results/figures/dqn_pri_{}_{}.png'.format(config['env_id'],
+																   datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
 		else:
-			fig.savefig('results/figures/dqn_{}.png'.format(int(time.time())))
+			fig.savefig('results/figures/dqn_{}_{}.png'.format(config['env_id'],
+															   datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
 	plt.close(fig)
 
