@@ -15,7 +15,8 @@ winWidth = 100
 writeCSV = True
 savePlot = True
 
-config_file = 'ddqn_acrobot.json'
+# config_file = 'ddqn_acrobot.json'
+config_file = 'ddqn_mountaincar.json'
 
 
 if __name__ == '__main__':
@@ -71,16 +72,16 @@ if __name__ == '__main__':
 	if config['double_q_model']:
 		if config['memory']['prioritized']:
 			fig.savefig('results/figures/ddqn_pri_{}_{}.png'.format(config['env_id'],
-																	datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
+																	datetime.now().strftime("%Y-%m-%d_%H-%M-%S")))
 		else:
 			fig.savefig('results/figures/ddqn_{}_{}.png'.format(config['env_id'],
-																datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
+																datetime.now().strftime("%Y-%m-%d_%H-%M-%S")))
 	else:
 		if config['memory']['prioritized']:
 			fig.savefig('results/figures/dqn_pri_{}_{}.png'.format(config['env_id'],
-																   datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
+																   datetime.now().strftime("%Y-%m-%d_%H-%M-%S")))
 		else:
 			fig.savefig('results/figures/dqn_{}_{}.png'.format(config['env_id'],
-															   datetime.now().strftime("%Y-%m-%d, %H-%M-%S")))
+															   datetime.now().strftime("%Y-%m-%d_%H-%M-%S")))
 	plt.close(fig)
 
