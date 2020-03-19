@@ -8,8 +8,9 @@ matplotlib.rcParams['figure.dpi'] = 200
 plt.style.use('ggplot')
 
 # %%
-gp_dyna_results = pd.read_csv('results/logs/gp_dyna_q_steps_1000_run_5.csv')
-ddqn_results = pd.read_csv('results/logs/ddqn_steps_1000_run_5.csv')
+env_id = 'AcroBot-v1'
+gp_dyna_results = pd.read_csv('results/logs/gp_dyna_q_{}_run_5.csv'.format(env_id))
+ddqn_results = pd.read_csv('results/logs/ddqn_{}_run_5.csv'.format(env_id))
 
 fig, ax = plt.subplots()
 ax.plot(gp_dyna_results['episodes'], gp_dyna_results['rewards'],
@@ -28,4 +29,6 @@ ax.legend()
 ax.set_xlabel('Episode')
 ax.set_ylabel('Reward')
 ax.set_xlim([0, 500])
+ax.set_title(env_id)
+plt.tight_layout()
 plt.show()
