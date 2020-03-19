@@ -14,7 +14,8 @@ winWidth = 100
 writeCSV = True
 savePlot = True
 
-config_file = 'gp_dyna_cartpole.json'
+# config_file = 'gp_dyna_cartpole.json'
+config_file = 'gp_dyna_acrobot.json'
 
 if __name__ == '__main__':
     aver_rwd_dyna = np.array((MaxEpisodes,))
