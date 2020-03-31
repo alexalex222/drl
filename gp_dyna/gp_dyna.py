@@ -89,7 +89,7 @@ class GpDynaQ(object):
         b_preds = self.env_model(b_in)
         loss = -self.mll(b_preds, b_out)
         self.env_opt.zero_grad()
-        loss.backward(retain_graph=True)
+        loss.backward()
         self.env_opt.step()
 
 
@@ -171,10 +171,11 @@ class GpDynaQ(object):
             b_preds = self.likelihood(self.env_model(b_in)).mean
 
         # check if the episode is done
-        # x, _, theta, _ = state_prime_value.cpu().data.numpy()
-        x = b_preds[:, [0]]
-        theta = b_preds[:, [2]]
-        done_value = (torch.abs(x) > self.config['cart_position_limit']) | (torch.abs(theta) > self.config['pole_angle_limit'])
+        if self.config['env_id'] == 'CartPole-v0':
+            done_value = (torch.abs(b_preds[:, [0]]) > self.config['cart_position_limit']) | \
+                         (torch.abs(b_preds[:, [2]]) > self.config['pole_angle_limit'])
+        elif self.config['env_id'] == 'Acrobot-v1':
+            done_value = (-torch.cos(b_preds[:, [0]]) - torch.cos(b_preds[:, [1]] + b_preds[:, [0]]) > 1.0)
 
         b_s = torch.tensor(b_s, dtype=torch.float32, device=self.device)
         b_a = torch.tensor(b_a, dtype=torch.long, device=self.device)

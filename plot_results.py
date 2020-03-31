@@ -8,13 +8,13 @@ matplotlib.rcParams['figure.dpi'] = 200
 plt.style.use('ggplot')
 
 # %%
-env_id = 'AcroBot-v1'
+env_id = 'CartPole-v0'
 gp_dyna_results = pd.read_csv('results/logs/gp_dyna_q_{}_run_5.csv'.format(env_id))
 ddqn_results = pd.read_csv('results/logs/ddqn_{}_run_5.csv'.format(env_id))
 
 fig, ax = plt.subplots()
 ax.plot(gp_dyna_results['episodes'], gp_dyna_results['rewards'],
-        color="#0072B2", label='GP Acceleration')
+        color="#0072B2", label='Env Model Acceleration')
 ax.fill_between(gp_dyna_results['episodes'],
                 gp_dyna_results['rewards'] + 2*np.sqrt(gp_dyna_results['variances']),
                 gp_dyna_results['rewards'] - 2*np.sqrt(gp_dyna_results['variances']),
