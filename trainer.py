@@ -1,6 +1,4 @@
 def off_policy_trainer(env, agent, replay_buffer, writer, config):
-    episode_rewards = []
-
     # Get samples from environment to warm up
     warm_up_step = 0
     while warm_up_step < config['warm_up_steps']:
@@ -15,6 +13,7 @@ def off_policy_trainer(env, agent, replay_buffer, writer, config):
             state = next_state
 
     # start training
+    episode_rewards = []
     for episode in range(config['max_episodes']):
         state = env.reset()
         episode_reward = 0

@@ -16,37 +16,49 @@ def run_dqn():
                         choices=['CartPole-v0',
                                  'Pendulum-v0',
                                  'Acrobot-v1',
-                                 'MountainCar-v0',
-                                 'MountainCarContinuous-v0'
+                                 'MountainCar-v0'
                                  ],
                         help='Choose an environment')
     args = parser.parse_args()
     config_file = 'config_files/' + args.env + '_dqn_feature.json'
     config = json.load(open(config_file))
 
+    # make an environment
     env = gym.make(config['task'])
-    config['state_shape'] = env.observation_space.shape[0] or env.observation_space.n
-    config['action_shape'] = env.action_space.shape or env.action_space.n
+    # get state shape
+    if isinstance(env.observation_space, gym.spaces.discrete.Discrete):
+        config['state_shape'] = env.observation_space.n
+    elif isinstance(env.observation_space, gym.spaces.box.Box):
+        config['state_shape'] = env.observation_space.shape[0]
+
+    # get action shape
+    if isinstance(env.action_space, gym.spaces.discrete.Discrete):
+        config['action_shape'] = env.action_space.n
+    elif isinstance(env.action_space, gym.spaces.box.Box):
+        config['action_shape'] = env.action_space.shape[0]
+
     # model
     q_net = VanillaQNet(state_shape=config['state_shape'],
                         action_shape=config['action_shape'],
-                        hidden_units=(128, 256, 256),
+                        hidden_units=tuple(config['hidden_units']),
                         device=config['device'])
+    # optimizer
     optim = torch.optim.Adam(q_net.parameters(), lr=config['lr'])
+    # agent
     agent = DQNAgent(q_net=q_net,
                      optimizer=optim,
                      config=config)
     # log
     writer = SummaryWriter(config['logdir'] +
                            '/' + 'dqn_' + config['task'] + '_' + datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    # replay buffer
     replay_buffer = BasicBuffer(max_size=config['buffer_size'])
+    # trainer
     off_policy_trainer(env,
                        agent,
                        replay_buffer,
                        writer,
-                       config['max_episodes'],
-                       config['max_steps'],
-                       config['batch_size'])
+                       config)
 
 
 if __name__ == '__main__':

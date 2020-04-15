@@ -61,6 +61,14 @@ class DQNAgent(BaseAgent):
 
         return action
 
+    def get_action_eval(self, state):
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+        self.q_net.eval()
+        with torch.no_grad():
+            qvals, _ = self.q_net(state)
+        action = qvals.max(1)[1].item()
+        return action
+
     def compute_loss(self, batch):
         states, actions, rewards, next_states, dones = batch
         states = torch.tensor(states, dtype=torch.float32).to(self.device)
@@ -91,12 +99,10 @@ class DQNAgent(BaseAgent):
             curr_q = curr_q.squeeze(1)
 
 
-        # Compute Huber loss
-        # The Huber loss acts like the mean squared error when the error is small,
-        # but like the mean absolute error when the error is large -
-        # this makes it more robust to outliers when the estimates of Q are very noisy.
-        # We calculate this over a batch of transitions, B, sampled from the replay memory
-        loss = F.smooth_l1_loss(curr_q, expected_q)
+        # Compute Huber loss to handle outliers rubostly
+        # loss = F.smooth_l1_loss(curr_q, expected_q)
+        # MSE loss
+        loss = F.mse_loss(curr_q, expected_q)
         return loss
 
     def learn(self, batch, **kwargs):
