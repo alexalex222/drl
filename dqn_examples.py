@@ -9,6 +9,7 @@ from dqn_agent import DQNAgent
 from buffers import BasicBuffer
 from trainer import off_policy_trainer
 
+
 def run_dqn():
     parser = argparse.ArgumentParser(description="Arguments to choose environment")
     parser.add_argument('--env',
@@ -46,6 +47,7 @@ def run_dqn():
                        config['max_episodes'],
                        config['max_steps'],
                        config['batch_size'])
+
 
 if __name__ == '__main__':
     run_dqn()
