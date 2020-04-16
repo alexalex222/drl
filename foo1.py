@@ -1,25 +1,15 @@
 # %%
-def func1(**kwargs):
-    if 'inducing_points' in kwargs:
-        print(kwargs['inducing_points'])
-    else:
-        print('No inducing points')
-
-func1()
-func1(inducing_points=20)
-
-# %%
 import numpy as np
+import gym
 import torch
-from component import *
-from network import *
-from utils import *
+import gpytorch
+from networks.network_models import VanillaQNet, StandardGPModel
 from matplotlib import pyplot as plt
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # %%
-task = Task('CartPole-v0')
+task = env = gym.make('CartPole-v0')
 i = 0
 total_data = np.empty((0, 4), dtype=float)
 
@@ -29,7 +19,7 @@ for i_episode in range(50):
     s = task.reset()
     current_episode_steps = 0
     while True:
-        a = np.asarray([task.action_space.sample()])
+        a = task.action_space.sample()
         s_, r, d, info = task.step(a)
         current_episode_steps += 1
 
@@ -43,11 +33,12 @@ for i_episode in range(50):
 
 # %%
 game = 'CartPole-v0'
-select_device(0)
-feature_size = 8
-q_net = VanillaNetFeature(2, FCBody(state_dim=4, hidden_units=(128, 64, feature_size)))
-q_net.load_state_dict(torch.load('data/{0}_q_net.pt'.format(game)))
-states = torch.tensor(total_data, dtype=torch.float32).to(Config.DEVICE)
+q_net = VanillaQNet(state_shape=4,
+                    action_shape=2,
+                    hidden_units=[128, 128, 16],
+                    device=device)
+q_net.load_state_dict(torch.load('results/q_net_{0}_dqn.pt'.format(game)))
+states = torch.tensor(total_data, dtype=torch.float32).to(device)
 
 with torch.no_grad():
     q_value, features = q_net(states)
@@ -56,16 +47,21 @@ with torch.no_grad():
 q_value = q_value.detach()
 features = features.detach()
 
+x_train_1 = features[:200, :].clone()
+y_train_1 = q_value[:200, 0].clone()
+x_test_1 = features[1000:, :].clone()
+x_train_2 = features[:200, :].clone()
+y_train_2 = q_value[:200, 1].clone()
+x_test_2 = features[1000:, :].clone()
 
 # %%
 likelihood1 = gpytorch.likelihoods.GaussianLikelihood()
 likelihood2 = gpytorch.likelihoods.GaussianLikelihood()
-likelihood1.initialize(noise=1e-4)
-likelihood2.initialize(noise=1e-4)
-gp1 = StandardGPModel(features[:1000, :], q_value[:1000, 0], likelihood1, kernel_type='linear')
-gp2 = StandardGPModel(features[:1000, :], q_value[:1000, 1], likelihood2, kernel_type='linear')
+likelihood1.initialize(noise=9e-4)
+likelihood2.initialize(noise=9e-4)
+gp1 = StandardGPModel(x_train_1, y_train_1, likelihood1, kernel_type='linear')
+gp2 = StandardGPModel(x_train_2, y_train_2, likelihood2, kernel_type='linear')
 
-gp3 = StandardGPModel(None, None, likelihood2, kernel_type='linear')
 
 gp1 = gp1.to(device)
 gp2 = gp2.to(device)
@@ -82,8 +78,8 @@ likelihood2.eval()
 # See https://arxiv.org/abs/1803.06058
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     # Make predictions
-    q1_gp_dist = gp1(features[1000:, :])
-    q2_gp_dist = gp2(features[1000:, :])
+    q1_gp_dist = gp1(x_test_1)
+    q2_gp_dist = gp2(x_test_2)
     # Get upper and lower confidence bounds
     q1_gp = q1_gp_dist.mean.detach().cpu().numpy()
     q2_gp = q2_gp_dist.mean.detach().cpu().numpy()
@@ -97,11 +93,12 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
 
 
 # %%
+
+
+
 fig, ax = plt.subplots()
-ax.plot(q_value[1000:, 0].cpu().numpy())
-ax.plot(q1_gp)
-#ax.plot(q1_gp_upper)
-#ax.plot(q1_gp_lower)
+ax.fill_between(np.arange(len(q1_gp)), q1_gp_lower, q1_gp_upper, facecolor='red', alpha=0.5)
+ax.fill_between(np.arange(len(q2_gp)), q2_gp_lower, q2_gp_upper, facecolor='green', alpha=0.5)
 plt.show()
 
 
@@ -111,3 +108,8 @@ ax.plot(q2_gp)
 #ax.plot(q2_gp_upper)
 #ax.plot(q2_gp_lower)
 plt.show()
+
+
+# %%
+for param in q_net.output.parameters():
+    print(param)
