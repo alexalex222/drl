@@ -14,7 +14,7 @@ class VanillaQNet(nn.Module):
         for i in range(1, len(hidden_units)):
             self.sequential_model += [nn.Linear(hidden_units[i-1], hidden_units[i]), nn.ReLU()]
         self.fc_body = nn.Sequential(*self.sequential_model)
-        self.output = nn.Linear(hidden_units[-1], action_shape)
+        self.output = nn.Linear(hidden_units[-1], action_shape, bias=False)
         self.to(device)
 
     def forward(self, state):
