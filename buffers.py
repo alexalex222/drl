@@ -9,7 +9,7 @@ class BasicBuffer:
         self.buffer = deque(maxlen=max_size)
 
     def push(self, state, action, reward, next_state, done):
-        experience = (state, np.array([action]), np.array([reward]), next_state, np.array([done]))
+        experience = (state, action, reward, next_state, done)
         self.buffer.append(experience)
 
     def sample(self, batch_size):
