@@ -1,4 +1,12 @@
-def off_policy_trainer(env, agent, replay_buffer, writer, config):
+
+
+def off_policy_trainer(env,
+                       agent,
+                       replay_buffer,
+                       writer,
+                       config,
+                       state_normalizer=None,
+                       reward_normalizer=None):
     # Get samples from environment to warm up
     warm_up_step = 0
     while warm_up_step < config['warm_up_steps']:
@@ -7,7 +15,20 @@ def off_policy_trainer(env, agent, replay_buffer, writer, config):
             action = env.action_space.sample()
             next_state, reward, done, _ = env.step(action)
             warm_up_step = warm_up_step + 1
-            replay_buffer.push(state, action, reward, next_state, done)
+            # normalized states if necessary
+            if state_normalizer:
+                state_normalized = state_normalizer(state)
+                next_state_normalized = state_normalizer(next_state)
+            else:
+                state_normalized = state
+                next_state_normalized = next_state
+            # normalized reward if necessary
+            if reward_normalizer:
+                reward_normalized = reward_normalizer(reward)
+            else:
+                reward_normalized = reward
+
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
             if done:
                 break
             state = next_state
@@ -21,8 +42,22 @@ def off_policy_trainer(env, agent, replay_buffer, writer, config):
         for step in range(config['max_steps']):
             action = agent.get_action(state)
             next_state, reward, done, _ = env.step(action)
-            replay_buffer.push(state, action, reward, next_state, done)
             episode_reward += reward
+
+            # normalized states if necessary
+            if state_normalizer:
+                state_normalized = state_normalizer(state)
+                next_state_normalized = state_normalizer(next_state)
+            else:
+                state_normalized = state
+                next_state_normalized = next_state
+            # normalized reward if necessary
+            if reward_normalizer:
+                reward_normalized = reward_normalizer(reward)
+            else:
+                reward_normalized = reward
+
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
 
             if len(replay_buffer) > config['batch_size']:
                 batch_data = replay_buffer.sample(config['batch_size'])

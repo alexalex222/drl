@@ -2,6 +2,8 @@
   "task": "CartPole-v0",
   "seed": 1626,
   "discount_factor": 0.9,
+  "grad_update_freq": 1,
+  "grad_clip": 1.0,
   "target_update_freq": 200,
   "eps_start": 0.1,
   "eps_end": 0.1,
@@ -12,10 +14,13 @@
   "buffer_size": 10000,
   "batch_size": 64,
   "inducing_size": 200,
+  "likelihood_init_noise": 1e-4,
   "max_steps": 201,
   "max_episodes": 200,
   "hidden_units": [128, 256, 256],
   "logdir": "tf_log",
   "q_net_save_path": "results/q_net_",
+  "gp_save_path": "results/gp_",
+  "likelihood_save_path": "results/likelihood_",
   "device": "cuda"
 }

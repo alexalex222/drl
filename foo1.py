@@ -1,11 +1,12 @@
 # %%
-import torch
+def func1(**kwargs):
+    if 'inducing_points' in kwargs:
+        print(kwargs['inducing_points'])
+    else:
+        print('No inducing points')
 
-a = torch.randn((5, 2))
-index = torch.tensor([1, 0, 1, 0, 1])
-
-b = a.index_select(dim=1, index=index)
-
+func1()
+func1(inducing_points=20)
 
 # %%
 import numpy as np
