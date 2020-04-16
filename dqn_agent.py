@@ -53,8 +53,8 @@ class DQNAgent(BaseAgent):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
-            qvals, _ = self.q_net(state)
-        action = qvals.max(1)[1].item()
+            q, _ = self.q_net(state)
+        action = q.max(1)[1].item()
 
         if torch.rand(1).item() < self.epsilon:
             return np.random.randint(self.config['action_shape'])
@@ -71,32 +71,45 @@ class DQNAgent(BaseAgent):
 
     def compute_loss(self, batch):
         states, actions, rewards, next_states, dones = batch
+        # states: shape [batch_size x state_dim]
         states = torch.tensor(states, dtype=torch.float32).to(self.device)
+        # states: shape [batch_size x 1]
         actions = torch.tensor(actions, dtype=torch.long).to(self.device)
+        # rewards: shape [batch_size x 1]
         rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
+        # next_states: shape [batch_size x state_dim]
         next_states = torch.tensor(next_states, dtype=torch.float32).to(self.device)
+        # dones: shape [states x 1]
         dones = torch.tensor(dones, dtype=torch.float32).to(self.device)
+
+        # compute the q values for next states
+        with torch.no_grad():
+            next_q, _ = self.target_q_net(next_states)
 
         if self.double_q:
             self.q_net.eval()
             with torch.no_grad():
-                next_actions = self.q_net(next_states)[0].max(dim=1)[1]
-                next_q, _ = self.target_q_net(next_states)
-            max_next_q = next_q.gather(1, next_actions.unsqueeze(1)).squeeze(1)
-            expected_q = (rewards.squeeze(1) + self.gamma * max_next_q) * (1 - dones)
+                # best_actions: shape [batch_size]
+                best_actions = torch.argmax(self.q_net(next_states)[0], dim=1)
+            # max_next_q: shape [batch_size x 1]
+            max_next_q = next_q.gather(1, best_actions.unsqueeze(1))
+            # expected_q: shape [batch_size x 1]
+            expected_q = (rewards + self.gamma * max_next_q) * (1 - dones)
 
             self.q_net.train()
-            curr_q = self.q_net(states)[0].gather(1, actions.unsqueeze(1))
-            curr_q = curr_q.squeeze(1)
+            # curr_q_all: shape [batch_size x action_dim]
+            curr_q_all, _ = self.q_net(states)
+            # curr_q: shape[batch_size x 1]
+            curr_q = curr_q_all.gather(1, actions)
         else:
-            with torch.no_grad():
-                next_q, _ = self.target_q_net(next_states)
-            max_next_q = next_q.max(dim=1)[0].detach()
-            expected_q = (rewards.squeeze(1) + self.gamma * max_next_q) * (1 - dones)
+            # max_next_q: shape [batch_size x 1]
+            max_next_q = next_q.max(dim=1)[0].detach().unsqueeze(1)
+            # expected_q: [batch_size x 1]
+            expected_q = (rewards + self.gamma * max_next_q) * (1 - dones)
 
             self.q_net.train()
-            curr_q = self.q_net(states)[0].gather(1, actions.unsqueeze(1))
-            curr_q = curr_q.squeeze(1)
+            # curr_q: shape [batch_size x 1]
+            curr_q = self.q_net(states)[0].gather(1, actions)
 
 
         # Compute Huber loss to handle outliers rubostly

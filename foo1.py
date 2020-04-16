@@ -1,17 +1,10 @@
 # %%
-import gym
+import torch
 
-env = gym.make('CartPole-v0')
-state = env.reset()
-i = 0
-while True:
-    action = env.action_space.sample()
-    next_state, reward, done, info = env.step(action)
-    if done:
-        break
-    state = next_state
-    i = i + 1
-    print(i)
+a = torch.randn((5, 2))
+index = torch.tensor([1, 0, 1, 0, 1])
+
+b = a.index_select(dim=1, index=index)
 
 
 # %%
