@@ -15,6 +15,6 @@
   "max_episodes": 200,
   "hidden_units": [128, 256, 256],
   "logdir": "tf_log",
-  "q_net_save_path": "saved_models/q_net_",
+  "q_net_save_path": "results/q_net_",
   "device": "cuda"
 }

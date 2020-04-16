@@ -3,7 +3,7 @@ from copy import deepcopy
 import torch
 import torch.nn.functional as F
 import numpy as np
-from base_agent import BaseAgent
+from agents.base_agent import BaseAgent
 
 
 class DQNAgent(BaseAgent):
@@ -96,7 +96,7 @@ class DQNAgent(BaseAgent):
             # max_next_q: shape [batch_size]
             max_next_q = next_q[self.batch_index, best_actions]
             # expected_q: shape [batch_size]
-            expected_q = (rewards + self.gamma * max_next_q) * (1 - dones)
+            expected_q = (rewards + self.gamma * max_next_q) * (torch.tensor([1]).to(self.device) - dones)
 
             self.q_net.train()
             # curr_q_all: shape [batch_size x action_dim]
@@ -107,14 +107,13 @@ class DQNAgent(BaseAgent):
             # max_next_q: shape [batch_size]
             max_next_q = next_q.max(dim=1)[0].detach()
             # expected_q: [batch_size]
-            expected_q = (rewards + self.gamma * max_next_q) * (1 - dones)
+            expected_q = (rewards + self.gamma * max_next_q) * (torch.tensor([1]).to(self.device) - dones)
 
             self.q_net.train()
             # curr_q: shape [batch_size]
             curr_q = self.q_net(states)[0][self.batch_index, actions]
 
-
-        # Compute Huber loss to handle outliers rubostly
+        # Compute Huber loss to handle outliers robustly
         # loss = F.smooth_l1_loss(curr_q, expected_q)
         # MSE loss
         loss = F.mse_loss(curr_q, expected_q)

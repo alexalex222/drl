@@ -4,10 +4,10 @@ from datetime import datetime
 import gym
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from network_models import VanillaQNet
-from dqn_agent import DQNAgent
-from buffers import BasicBuffer
-from trainer import off_policy_trainer
+from networks.network_models import VanillaQNet
+from agents.dqn_agent import DQNAgent
+from utils.replay_buffers import BasicBuffer
+from utils.trainer import off_policy_trainer
 
 
 def run_dqn():
@@ -59,6 +59,8 @@ def run_dqn():
                        replay_buffer,
                        writer,
                        config)
+    # save q_net
+    torch.save(q_net.state_dict(), config['q_net_save_path'] + config['task'] + '.pt')
 
 
 if __name__ == '__main__':
