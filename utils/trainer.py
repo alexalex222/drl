@@ -28,8 +28,9 @@ def off_policy_trainer(env, agent, replay_buffer, writer, config):
                 batch_data = replay_buffer.sample(config['batch_size'])
                 results_dict = agent.learn(batch_data)
 
-                writer.add_scalar('Q_Net_Loss', results_dict['q_net_loss'], agent.steps_done)
-                writer.add_scalar('Epsilon', results_dict['eps'], agent.steps_done)
+                if results_dict:
+                    writer.add_scalar('Q_Net_Loss', results_dict['q_net_loss'], agent.steps_done)
+                    writer.add_scalar('Epsilon', results_dict['eps'], agent.steps_done)
 
             if done or step == config['max_steps'] - 1:
                 episode_rewards.append(episode_reward)

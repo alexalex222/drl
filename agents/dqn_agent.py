@@ -1,6 +1,7 @@
 import math
 from copy import deepcopy
 import torch
+from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from agents.base_agent import BaseAgent
@@ -40,6 +41,12 @@ class DQNAgent(BaseAgent):
         self.double_q = config['double_q']
         # batch index
         self.batch_index = torch.arange(config['batch_size']).long().to(config['device'])
+        # gradient update frequency
+        self._grad_update_freq = config['grad_update_freq']
+        # gradient clip
+        self._grad_clip = config['grad_clip']
+        # q net loss
+        self.q_net_loss = 0
         self.config = config
 
     def sync_weight(self):
@@ -51,16 +58,15 @@ class DQNAgent(BaseAgent):
 
     def get_action(self, state):
         self.epsilon = self.set_epsilon()
+        if torch.rand(1).item() < self.epsilon:
+            return np.random.randint(self.config['action_shape'])
+
         self.steps_done += 1
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
             q, _ = self.q_net(state)
         action = q.max(dim=1)[1].item()
-
-        if torch.rand(1).item() < self.epsilon:
-            return np.random.randint(self.config['action_shape'])
-
         return action
 
     def get_action_eval(self, state):
@@ -114,19 +120,26 @@ class DQNAgent(BaseAgent):
             curr_q = self.q_net(states)[0][self.batch_index, actions]
 
         # Compute Huber loss to handle outliers robustly
-        # loss = F.smooth_l1_loss(curr_q, expected_q)
+        loss = F.smooth_l1_loss(curr_q, expected_q)
         # MSE loss
-        loss = F.mse_loss(curr_q, expected_q)
+        # loss = F.mse_loss(curr_q, expected_q)
         return loss
 
     def learn(self, batch, **kwargs):
-        loss = self.compute_loss(batch)
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+        is_updated = False
+        if self.steps_done % self._grad_update_freq == 0:
+            loss = self.compute_loss(batch)
+            self.optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(self.q_net.parameters(), self._grad_clip)
+            self.optimizer.step()
+            self.q_net_loss = loss.item()
+            is_updated = True
 
         if self.steps_done % self._target_update_freq == 0:
             self.sync_weight()
 
-        return {'q_net_loss': loss.item(), 'eps': self.epsilon}
+        if is_updated:
+            return {'q_net_loss': self.q_net_loss, 'eps': self.epsilon}
+        else:
+            return None
