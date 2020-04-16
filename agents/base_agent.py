@@ -46,3 +46,13 @@ class BaseAgent(ABC):
         :return: A dict which includes loss and its corresponding label.
         """
         pass
+
+    @abstractmethod
+    def get_action(self, state):
+        """
+        Compute action given a state
+        :param state:
+        :return: action
+        """
+
+        pass

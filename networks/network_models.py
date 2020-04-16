@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-import numpy as np
+import gpytorch
 
 
 class VanillaQNet(nn.Module):
@@ -26,3 +26,37 @@ class VanillaQNet(nn.Module):
         q = self.output(h)
         return q, h
 
+
+class NatureConvQNet(nn.Module):
+    def __init__(self, action_dim):
+        super(NatureConvQNet, self).__init__()
+        self.feature_dim = 512
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.fc4 = nn.Linear(7 * 7 * 64, self.feature_dim)
+        self.output = nn.Linear(self.feature_dim, action_dim)
+
+    def forward(self, x):
+        y = F.relu(self.conv1(x))
+        y = F.relu(self.conv2(y))
+        y = F.relu(self.conv3(y))
+        y = y.view(y.size(0), -1)
+        h = F.relu(self.fc4(y))
+        q = self.output(h)
+        return q, h
+
+
+class StandardGPModel(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y, likelihood, kernel_type='rbf'):
+        super(StandardGPModel, self).__init__(train_x, train_y, likelihood)
+        self.mean_module = gpytorch.means.ConstantMean()
+        if kernel_type == 'linear':
+            self.covar_module = gpytorch.kernels.LinearKernel()
+        else:
+            self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
