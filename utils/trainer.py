@@ -11,6 +11,7 @@ def off_policy_trainer(env,
     warm_up_step = 0
     while warm_up_step < config['warm_up_steps']:
         state = env.reset()
+
         while True:
             action = env.action_space.sample()
             next_state, reward, done, _ = env.step(action)
@@ -28,7 +29,14 @@ def off_policy_trainer(env,
             else:
                 reward_normalized = reward
 
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
+            # check if the episode is terminated due to max steps
+            if done and env._elapsed_steps >= env._max_episode_steps:
+                really_done = False
+            else:
+                really_done = done
+
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
+
             if done:
                 break
             state = next_state
@@ -57,7 +65,13 @@ def off_policy_trainer(env,
             else:
                 reward_normalized = reward
 
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
+            # check if the episode is terminated due to max steps
+            if done and env._elapsed_steps >= env._max_episode_steps:
+                really_done = False
+            else:
+                really_done = done
+
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
 
             if len(replay_buffer) > config['batch_size']:
                 batch_data = replay_buffer.sample(config['batch_size'])
@@ -107,7 +121,13 @@ def off_policy_trainer_gp(env,
             else:
                 reward_normalized = reward
 
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
+            # check if the episode is terminated due to max steps
+            if done and env._elapsed_steps >= env._max_episode_steps:
+                really_done = False
+            else:
+                really_done = done
+
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
             if done:
                 break
             state = next_state
@@ -136,8 +156,13 @@ def off_policy_trainer_gp(env,
             else:
                 reward_normalized = reward
 
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
+            # check if the episode is terminated due to max steps
+            if done and env._elapsed_steps >= env._max_episode_steps:
+                really_done = False
+            else:
+                really_done = done
 
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
             if len(replay_buffer) > config['batch_size']:
                 batch_data = replay_buffer.sample(config['batch_size'])
                 results_dict = agent.learn(batch_data)
