@@ -4,6 +4,13 @@ import torch.nn.functional as F
 import gpytorch
 
 
+def layer_init(layer, w_scale=1.0):
+    nn.init.kaiming_normal_(layer.weight.data, mode='fan_in', nonlinearity='relu')
+    layer.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.bias.data, 0)
+    return layer
+
+
 class VanillaQNet(nn.Module):
     def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu'):
         super().__init__()
@@ -31,11 +38,11 @@ class NatureConvQNet(nn.Module):
     def __init__(self, action_dim):
         super(NatureConvQNet, self).__init__()
         self.feature_dim = 512
-        self.conv1 = nn.Conv2d(4, 32, kernel_size=8, stride=4)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-        self.fc4 = nn.Linear(7 * 7 * 64, self.feature_dim)
-        self.output = nn.Linear(self.feature_dim, action_dim)
+        self.conv1 = layer_init(nn.Conv2d(4, 32, kernel_size=8, stride=4))
+        self.conv2 = layer_init(nn.Conv2d(32, 64, kernel_size=4, stride=2))
+        self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
+        self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
+        self.output = layer_init(nn.Linear(self.feature_dim, action_dim))
 
     def forward(self, x):
         y = F.relu(self.conv1(x))
