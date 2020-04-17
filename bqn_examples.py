@@ -5,13 +5,13 @@ import gym
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from networks.network_models import VanillaQNet
-from agents.dqn_agent import DQNAgent
+from agents.gp_agent import GPAgent
 from utils.replay_buffers import BasicBuffer
-from utils.trainer import off_policy_trainer
+from utils.trainer import off_policy_trainer_gp
 from utils.normalizer import RescaleNormalizer
 
 
-def run_dqn():
+def run_bqn():
     parser = argparse.ArgumentParser(description="Arguments to choose environment")
     parser.add_argument('--env',
                         choices=['CartPole-v0',
@@ -21,7 +21,7 @@ def run_dqn():
                                  ],
                         help='Choose an environment')
     args = parser.parse_args()
-    config_file = 'config_files/' + args.env + '_dqn_feature.json'
+    config_file = 'config_files/' + args.env + '_gp_feature.json'
     config = json.load(open(config_file))
 
     # make an environment
@@ -46,25 +46,25 @@ def run_dqn():
     # optimizer
     optim = torch.optim.Adam(q_net.parameters(), lr=config['lr'])
     # agent
-    agent = DQNAgent(q_net=q_net,
+    agent = GPAgent(q_net=q_net,
                      optimizer=optim,
                      config=config)
     # log
     writer = SummaryWriter(config['logdir'] +
-                           '/' + 'dqn_' + config['task'] + '_' + datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+                           '/' + 'bqn_' + config['task'] + '_' + datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     # replay buffer
     replay_buffer = BasicBuffer(max_size=config['buffer_size'])
     # trainer
-    off_policy_trainer(env,
-                       agent,
-                       replay_buffer,
-                       writer,
-                       config,
-                       reward_normalizer=RescaleNormalizer(0.01)
-                       )
+    off_policy_trainer_gp(env,
+                          agent,
+                          replay_buffer,
+                          writer,
+                          config,
+                          reward_normalizer=RescaleNormalizer(0.01)
+                          )
     # save q_net
-    torch.save(q_net.state_dict(), config['q_net_save_path'] + config['task'] + '_dqn' + '.pt')
+    torch.save(q_net.state_dict(), config['q_net_save_path'] + config['task'] + '_bqn' + '.pt')
 
 
 if __name__ == '__main__':
-    run_dqn()
+    run_bqn()
