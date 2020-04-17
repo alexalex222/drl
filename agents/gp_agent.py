@@ -55,8 +55,8 @@ class GPAgent(BaseAgent):
         for i in range(config['action_shape']):
             self.likelihoods[i].initialize(noise=1e-4)
         # gp layer
-        self.gp_layers = [StandardGPModel(train_x=torch.randn(config['inducing_size'], config['hidden_units'][-1]),
-                                          train_y=torch.randn(config['inducing_size']),
+        self.gp_layers = [StandardGPModel(train_x=None,
+                                          train_y=None,
                                           likelihood=self.likelihoods[i],
                                           kernel_type='linear').to(self.device)
                           for i in range(config['action_shape'])]
@@ -75,24 +75,24 @@ class GPAgent(BaseAgent):
         return self.eps_end + (self.eps_start - self.eps_end) * math.exp(-1. * self.steps_done / self.eps_decay_steps)
 
     def get_action(self, state):
-        self.epsilon = self.set_epsilon()
         self.steps_done += 1
+        for i in range(self.config['action_shape']):
+            if self.gp_layers[i].train_inputs is None or self.gp_layers[i].train_targets is None:
+                return np.random.randint(self.config['action_shape'])
+
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
             q, h = self.q_net(state)
-        action = q.max(dim=1)[1].item()
         q_posterior = np.empty([self.config['action_shape']])
         for i in range(self.config['action_shape']):
             with torch.no_grad(), gpytorch.settings.fast_pred_var():
                 q_posterior_sample = self.gp_layers[i](h.clone().detach()).sample().item()
             q_posterior[i] = q_posterior_sample
-        action_sampling = np.argmax(q_posterior)
-        if action_sampling == action:
+        action = np.argmax(q_posterior)
+        action_greedy = torch.argmax(q, dim=1).item()
+        if action == action_greedy:
             self.greedy_selection = self.greedy_selection + 1
-
-        if torch.rand(1).item() < self.epsilon:
-            return np.random.randint(self.config['action_shape'])
         return action
 
     def get_action_eval(self, state):
@@ -191,6 +191,6 @@ class GPAgent(BaseAgent):
             for i in range(self.config['action_shape']):
                 x_train = features.clone().detach()
                 y_train = obs_qs[:, i].clone().detach()
-                self.gp_layers[i].set_train_data(inputs=x_train, targets=y_train)
+                self.gp_layers[i].set_train_data(inputs=x_train, targets=y_train, strict=False)
 
 
