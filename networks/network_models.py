@@ -35,7 +35,7 @@ class VanillaQNet(nn.Module):
 
 
 class NatureConvQNet(nn.Module):
-    def __init__(self, action_dim):
+    def __init__(self, action_dim, device='cpu'):
         super(NatureConvQNet, self).__init__()
         self.feature_dim = 512
         self.conv1 = layer_init(nn.Conv2d(4, 32, kernel_size=8, stride=4))
@@ -43,6 +43,7 @@ class NatureConvQNet(nn.Module):
         self.conv3 = layer_init(nn.Conv2d(64, 64, kernel_size=3, stride=1))
         self.fc4 = layer_init(nn.Linear(7 * 7 * 64, self.feature_dim))
         self.output = layer_init(nn.Linear(self.feature_dim, action_dim))
+        self.to(device)
 
     def forward(self, x):
         y = F.relu(self.conv1(x))
