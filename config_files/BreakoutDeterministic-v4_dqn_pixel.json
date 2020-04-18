@@ -10,7 +10,7 @@
   "lr": 1e-5,
   "double_q": true,
   "warm_up_steps": 50000,
-  "buffer_size": 500000,
+  "buffer_size": 1000000,
   "batch_size": 32,
   "max_steps": 100001,
   "max_episodes": 50000,

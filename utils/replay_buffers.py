@@ -23,6 +23,9 @@ class BasicBuffer:
 
         for experience in batch:
             state, action, reward, next_state, done = experience
+            if len(state.shape) == 3 and state.dtype == np.uint8:
+                state = state.astype(float)/255.0
+                next_state = next_state.astype(float)/255.0
             state_batch.append(state)
             action_batch.append(action)
             reward_batch.append(reward)

@@ -184,3 +184,4 @@ def off_policy_trainer_gp(env,
         writer.add_scalar('Episode Reward', episode_reward, episode + 1)
 
     return episode_rewards
+
