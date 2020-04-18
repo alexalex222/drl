@@ -64,7 +64,7 @@ def run_dqn():
                        )
     # save q_net
     torch.save(q_net.state_dict(), config['q_net_save_path'] + config['task'] + '_dqn' + '.pt')
-
+    writer.close()
 
 if __name__ == '__main__':
     run_dqn()
