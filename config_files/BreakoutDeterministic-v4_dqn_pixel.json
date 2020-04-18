@@ -1,0 +1,20 @@
+{
+  "task": "BreakoutDeterministic-v4",
+  "discount_factor": 0.99,
+  "grad_update_freq": 4,
+  "grad_clip": 1.0,
+  "target_update_freq": 10000,
+  "eps_start": 1.0,
+  "eps_end": 0.1,
+  "eps_decay_steps": 1000000,
+  "lr": 1e-5,
+  "double_q": true,
+  "warm_up_steps": 50000,
+  "buffer_size": 500000,
+  "batch_size": 32,
+  "max_steps": 100001,
+  "max_episodes": 50000,
+  "logdir": "tf_log",
+  "q_net_save_path": "results/q_net_",
+  "device": "cuda"
+}
