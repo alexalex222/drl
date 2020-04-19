@@ -12,7 +12,7 @@
   "warm_up_steps": 50000,
   "buffer_size": 1000000,
   "batch_size": 32,
-  "max_steps": 100001,
+  "max_steps": 18000,
   "max_episodes": 50000,
   "logdir": "tf_log",
   "q_net_save_path": "results/q_net_",

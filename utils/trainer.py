@@ -8,6 +8,7 @@ def off_policy_trainer(env,
                        state_normalizer=None,
                        reward_normalizer=None):
     # Get samples from environment to warm up
+    print('Warm up...')
     warm_up_step = 0
     while warm_up_step < config['warm_up_steps']:
         state = env.reset()
@@ -29,19 +30,14 @@ def off_policy_trainer(env,
             else:
                 reward_normalized = reward
 
-            # check if the episode is terminated due to max steps
-            if done and env._elapsed_steps >= env._max_episode_steps:
-                really_done = False
-            else:
-                really_done = done
-
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
 
             if done:
                 break
             state = next_state
 
     # start training
+    print('Start training')
     episode_rewards = []
     for episode in range(config['max_episodes']):
         state = env.reset()
@@ -65,13 +61,7 @@ def off_policy_trainer(env,
             else:
                 reward_normalized = reward
 
-            # check if the episode is terminated due to max steps
-            if done and env._elapsed_steps >= env._max_episode_steps:
-                really_done = False
-            else:
-                really_done = done
-
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
 
             if len(replay_buffer) > config['batch_size']:
                 batch_data = replay_buffer.sample(config['batch_size'])
@@ -81,13 +71,13 @@ def off_policy_trainer(env,
                     writer.add_scalar('Q_Net_Loss', results_dict['q_net_loss'], agent.steps_done)
                     writer.add_scalar('Epsilon', results_dict['eps'], agent.steps_done)
 
-            if done or step == config['max_steps'] - 1:
-                episode_rewards.append(episode_reward)
-                print("Episode " + str(episode) + ": " + str(episode_reward))
+            if done:
                 break
 
             state = next_state
 
+        episode_rewards.append(episode_reward)
+        print("Episode " + str(episode) + ": " + str(episode_reward))
         writer.add_scalar('Episode Reward', episode_reward, episode + 1)
 
     return episode_rewards
@@ -101,6 +91,7 @@ def off_policy_trainer_gp(env,
                           state_normalizer=None,
                           reward_normalizer=None):
     # Get samples from environment to warm up
+    print('warm up...')
     warm_up_step = 0
     while warm_up_step < config['warm_up_steps']:
         state = env.reset()
@@ -121,18 +112,13 @@ def off_policy_trainer_gp(env,
             else:
                 reward_normalized = reward
 
-            # check if the episode is terminated due to max steps
-            if done and env._elapsed_steps >= env._max_episode_steps:
-                really_done = False
-            else:
-                really_done = done
-
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
             if done:
                 break
             state = next_state
 
     # start training
+    print('Start training')
     episode_rewards = []
     for episode in range(config['max_episodes']):
         state = env.reset()
@@ -156,13 +142,7 @@ def off_policy_trainer_gp(env,
             else:
                 reward_normalized = reward
 
-            # check if the episode is terminated due to max steps
-            if done and env._elapsed_steps >= env._max_episode_steps:
-                really_done = False
-            else:
-                really_done = done
-
-            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, really_done)
+            replay_buffer.push(state_normalized, action, reward_normalized, next_state_normalized, done)
             if len(replay_buffer) > config['batch_size']:
                 batch_data = replay_buffer.sample(config['batch_size'])
                 results_dict = agent.learn(batch_data)
@@ -174,13 +154,13 @@ def off_policy_trainer_gp(env,
                     writer.add_scalar('Q_Net_Loss', results_dict['q_net_loss'], agent.steps_done)
                     writer.add_scalar('Epsilon', 1 - agent.greedy_selection/agent.steps_done, agent.steps_done)
 
-            if done or step == config['max_steps'] - 1:
-                episode_rewards.append(episode_reward)
-                print("Episode " + str(episode) + ": " + str(episode_reward))
+            if done:
                 break
 
             state = next_state
 
+        episode_rewards.append(episode_reward)
+        print("Episode " + str(episode) + ": " + str(episode_reward))
         writer.add_scalar('Episode Reward', episode_reward, episode + 1)
 
     return episode_rewards
