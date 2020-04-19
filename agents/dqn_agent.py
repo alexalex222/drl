@@ -60,11 +60,12 @@ class DQNAgent(BaseAgent):
         return eps
 
     def get_action(self, state):
+        self.steps_done += 1
+
         self.epsilon = self.set_epsilon()
         if torch.rand(1).item() < self.epsilon:
             return np.random.randint(self.config['action_shape'])
 
-        self.steps_done += 1
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
