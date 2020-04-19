@@ -54,7 +54,10 @@ class DQNAgent(BaseAgent):
         self.target_q_net.load_state_dict(self.q_net.state_dict())
 
     def set_epsilon(self):
-        return self.eps_end + (self.eps_start - self.eps_end) * math.exp(-1. * self.steps_done / self.eps_decay_steps)
+        # eps = self.eps_end + (self.eps_start - self.eps_end) * math.exp(-1. * self.steps_done / self.eps_decay_steps)
+        eps = max(self.eps_start + (self.eps_end - self.eps_start) * (self.steps_done / self.eps_decay_steps),
+                  self.eps_end)
+        return eps
 
     def get_action(self, state):
         self.epsilon = self.set_epsilon()
