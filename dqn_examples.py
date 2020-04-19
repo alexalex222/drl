@@ -15,6 +15,7 @@ def run_dqn():
     parser = argparse.ArgumentParser(description="Arguments to choose environment")
     parser.add_argument('--env',
                         choices=['CartPole-v0',
+                                 'CartPole-v1',
                                  'Pendulum-v0',
                                  'Acrobot-v1',
                                  'MountainCar-v0'
