@@ -43,6 +43,8 @@ class GPAgent(BaseAgent):
         self.double_q = config['double_q']
         # batch index
         self.batch_index = torch.arange(config['batch_size']).long().to(config['device'])
+        # inducing batch index
+        self.inducing_batch_index = torch.arange(config['inducing_size']).long().to(config['device'])
         # gradient update frequency
         self._grad_update_freq = config['grad_update_freq']
         # gradient clip
@@ -185,12 +187,24 @@ class GPAgent(BaseAgent):
             dones = torch.tensor(dones, dtype=torch.float32).to(self.device)
 
             self.q_net.eval()
+            # compute the q values for next states
             with torch.no_grad():
-                obs_qs, features = self.q_net(states)
+                next_q, _ = self.target_q_net(next_states)
+                next_q_temp, features = self.q_net(next_states)
+
+            if self.double_q:
+                # best_actions: shape [batch_size]
+                best_actions = torch.argmax(next_q_temp, dim=1)
+            else:
+                # max_next_q: shape [batch_size]
+                best_actions = torch.argmax(next_q, dim=1)
+            next_q[self.inducing_batch_index, best_actions] = \
+                (rewards + self.gamma * next_q[self.inducing_batch_index, best_actions]) * \
+                (torch.tensor([1]).to(self.device) - dones)
 
             for i in range(self.config['action_shape']):
                 x_train = features.clone().detach()
-                y_train = obs_qs[:, i].clone().detach()
+                y_train = next_q[:, i].clone().detach()
                 self.gp_layers[i].set_train_data(inputs=x_train, targets=y_train, strict=False)
 
 

@@ -15,8 +15,7 @@ def run_bqn():
     parser = argparse.ArgumentParser(description="Arguments to choose environment")
     parser.add_argument('--env',
                         choices=['CartPole-v0',
-                                 'Pendulum-v0',
-                                 'Acrobot-v1',
+                                 'CartPole-v1',
                                  'MountainCar-v0'
                                  ],
                         help='Choose an environment')
