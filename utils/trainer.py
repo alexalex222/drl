@@ -1,4 +1,4 @@
-
+import numpy as np
 
 def off_policy_trainer(env,
                        agent,
@@ -78,7 +78,24 @@ def off_policy_trainer(env,
 
         episode_rewards.append(episode_reward)
         print("Episode " + str(episode) + ": " + str(episode_reward))
-        writer.add_scalar('Episode Reward', episode_reward, episode + 1)
+        writer.add_scalar('Episode Reward/train', episode_reward, episode + 1)
+
+        if (episode + 1) % config['eval_interval'] == 0:
+            eval_episode_rewards = []
+            for eval_ep in range(config['eval_episodes']):
+                state = env.reset()
+                eval_episode_reward = 0
+                for _ in range(config['max_steps']):
+                    action = agent.get_action_eval(state)
+                    next_state, reward, done, _ = env.step(action)
+                    eval_episode_reward += reward
+                    if done:
+                        break
+                    state = next_state
+                eval_episode_rewards.append(eval_episode_reward)
+            average_eval_reward = np.mean(eval_episode_rewards)
+            print("Eval: " + str(average_eval_reward))
+            writer.add_scalar('Episode Reward/eval', average_eval_reward, episode + 1)
 
     return episode_rewards
 
@@ -162,6 +179,23 @@ def off_policy_trainer_gp(env,
         episode_rewards.append(episode_reward)
         print("Episode " + str(episode) + ": " + str(episode_reward))
         writer.add_scalar('Episode Reward', episode_reward, episode + 1)
+
+        if (episode + 1) % config['eval_interval'] == 0:
+            eval_episode_rewards = []
+            for eval_ep in range(config['eval_episodes']):
+                state = env.reset()
+                eval_episode_reward = 0
+                for _ in range(config['max_steps']):
+                    action = agent.get_action_eval(state)
+                    next_state, reward, done, _ = env.step(action)
+                    eval_episode_reward += reward
+                    if done:
+                        break
+                    state = next_state
+                eval_episode_rewards.append(eval_episode_reward)
+            average_eval_reward = np.mean(eval_episode_rewards)
+            print("Eval: " + str(average_eval_reward))
+            writer.add_scalar('Episode Reward/eval', average_eval_reward, episode + 1)
 
     return episode_rewards
 
