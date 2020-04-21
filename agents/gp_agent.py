@@ -101,8 +101,13 @@ class GPAgent(BaseAgent):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
-            qvals, _ = self.q_net(state)
-        action = qvals.max(1)[1].item()
+            _, feature = self.q_net(state)
+        q_posterior_means = np.empty([self.config['action_shape']])
+        for i in range(self.config['action_shape']):
+            with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                q_posterior_mean = self.gp_layers[i](feature.clone().detach()).mean.item()
+            q_posterior_means[i] = q_posterior_mean
+        action = np.argmax(q_posterior_means)
         return action
 
     def compute_loss(self, batch):
