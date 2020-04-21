@@ -13,7 +13,7 @@ for tb_file in glob.glob(tb_path):
 
     tags = ea.Tags()['scalars']
 
-    tag = 'Episode_Reward'
+    tag = 'Episode_Reward/eval'
     tag_values = []
 
     for event in ea.Scalars(tag):
