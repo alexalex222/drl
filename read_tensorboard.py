@@ -4,7 +4,7 @@ import numpy as np
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 # %%
-task = 'CartPole'
+task = 'MountainCar'
 tb_path = 'C:\\temp\\tb_log\\*{0}*'.format(task)
 all_rewards = []
 for tb_file in glob.glob(tb_path):

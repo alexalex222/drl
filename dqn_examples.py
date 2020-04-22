@@ -16,7 +16,6 @@ def run_dqn():
     parser.add_argument('--env',
                         choices=['CartPole-v0',
                                  'CartPole-v1',
-                                 'Pendulum-v0',
                                  'Acrobot-v1',
                                  'MountainCar-v0'
                                  ],
