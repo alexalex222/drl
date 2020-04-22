@@ -4,7 +4,7 @@
   "discount_factor": 0.99,
   "grad_update_freq": 1,
   "grad_clip": 1.0,
-  "target_update_freq": 200,
+  "target_update_freq": 500,
   "eps_start": 0.1,
   "eps_end": 0.1,
   "eps_decay_steps": 2000,
