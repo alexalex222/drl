@@ -1,4 +1,6 @@
 import numpy as np
+import gym
+
 
 def off_policy_trainer(env,
                        agent,
@@ -45,6 +47,10 @@ def off_policy_trainer(env,
 
         for step in range(config['max_steps']):
             action = agent.get_action(state)
+            if isinstance(env.observation_space, gym.spaces.box.Box):
+                action = (action + 1) / 2.0 * (env.action_space.high - env.action_space.low) + \
+                         env.action_space.low
+                action = np.clip(action, env.action_space.low, env.action_space.high)
             next_state, reward, done, _ = env.step(action)
             episode_reward += reward
 
@@ -68,8 +74,14 @@ def off_policy_trainer(env,
                 results_dict = agent.learn(batch_data)
 
                 if results_dict:
-                    writer.add_scalar('Q_Net_Loss', results_dict['q_net_loss'], agent.steps_done)
-                    writer.add_scalar('Epsilon', results_dict['eps'], agent.steps_done)
+                    if type(agent).__name__ == 'DQNAgent':
+                        writer.add_scalar('Q_Net_Loss', results_dict['q_net_loss'], agent.steps_done)
+                        writer.add_scalar('Epsilon', results_dict['eps'], agent.steps_done)
+                    elif type(agent).__name__ == 'SoftActorCriticAgent':
+                        writer.add_scalar('Loss/value_net_loss', results_dict['value_loss'], agent.steps_done)
+                        writer.add_scalar('Loss/q_net_loss1', results_dict['q1_loss'], agent.steps_done)
+                        writer.add_scalar('Loss/q_net_loss2', results_dict['q2_loss'], agent.steps_done)
+                        writer.add_scalar('Loss/policy_net_loss', results_dict['policy_loss'], agent.steps_done)
 
             if done:
                 break
@@ -87,6 +99,10 @@ def off_policy_trainer(env,
                 eval_episode_reward = 0
                 for _ in range(config['max_steps']):
                     action = agent.get_action_eval(state)
+                    if isinstance(env.observation_space, gym.spaces.box.Box):
+                        action = (action + 1) / 2.0 * (env.action_space.high - env.action_space.low) + \
+                                 env.action_space.low
+                        action = np.clip(action, env.action_space.low, env.action_space.high)
                     next_state, reward, done, _ = env.step(action)
                     eval_episode_reward += reward
                     if done:

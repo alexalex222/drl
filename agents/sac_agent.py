@@ -76,7 +76,7 @@ class SoftActorCriticAgent(BaseAgent):
         # states: shape [batch_size x state_dim]
         states = torch.tensor(states, dtype=torch.float32).to(self.device)
         # actions: shape [batch_size x action_dim]
-        actions = torch.tensor(actions, dtype=torch.long).to(self.device)
+        actions = torch.tensor(actions, dtype=torch.float32).to(self.device)
         # rewards: shape [batch_size x 1]
         rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(-1).to(self.device)
         # next_states: shape [batch_size x state_dim]
@@ -84,14 +84,14 @@ class SoftActorCriticAgent(BaseAgent):
         # dones: shape [states x 1]
         dones = torch.tensor(dones, dtype=torch.float32).unsqueeze(-1).to(self.device)
 
-        predicted_q_values1 = self.q_net1(states, actions)
-        predicted_q_values2 = self.q_net2(states, actions)
-        predicted_values = self.value_net(states)
+        predicted_q_values1, _ = self.q_net1(states, actions)
+        predicted_q_values2, _ = self.q_net2(states, actions)
+        predicted_values, _ = self.value_net(states)
         new_actions, log_probs, epsilons, means, log_stds = self.policy_net.evaluate(states)
 
         # Eq (8)
         with torch.no_grad():
-            target_values = self.target_value_net(next_states)
+            target_values, _ = self.target_value_net(next_states)
         target_q_values = rewards + (1 - dones) * self.gamma * target_values
 
         # Eq (7) and (9)
@@ -108,7 +108,7 @@ class SoftActorCriticAgent(BaseAgent):
         self.q_optimizer2.step()
 
         # update value_net based on Eq (5) and (6)
-        predicted_new_q_values = torch.min(self.q_net1(states, new_actions), self.q_net2(states, new_actions))
+        predicted_new_q_values = torch.min(self.q_net1(states, new_actions)[0], self.q_net2(states, new_actions)[0])
         target_value_func = predicted_new_q_values - log_probs
         value_loss = F.mse_loss(predicted_values, target_value_func.detach())
         self.value_optimizer.zero_grad()

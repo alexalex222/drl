@@ -71,12 +71,12 @@ class StandardGPModel(gpytorch.models.ExactGP):
 
 
 class VanillaQNetContinuous(nn.Module):
-    def __init__(self, state_shape, hidden_units=(128, 128, 128), device='cpu', init_w=3e-3):
+    def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu', init_w=3e-3):
         super(VanillaQNetContinuous, self).__init__()
         super().__init__()
         self.device = device
         self.sequential_model = [
-            nn.Linear(state_shape, hidden_units[0]),
+            nn.Linear(state_shape + action_shape, hidden_units[0]),
             nn.ReLU()]
         for i in range(1, len(hidden_units)):
             self.sequential_model += [nn.Linear(hidden_units[i - 1], hidden_units[i]), nn.ReLU()]
@@ -91,7 +91,7 @@ class VanillaQNetContinuous(nn.Module):
         x = x.to(self.device)
         h = self.fc_body(x)
         q = self.output(h)
-        return q
+        return q, h
 
 
 class PolicyNetworkContinuous(nn.Module):
