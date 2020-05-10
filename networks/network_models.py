@@ -68,3 +68,84 @@ class StandardGPModel(gpytorch.models.ExactGP):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
+class VanillaQNetContinuous(nn.Module):
+    def __init__(self, state_shape, hidden_units=(128, 128, 128), device='cpu', init_w=3e-3):
+        super(VanillaQNetContinuous, self).__init__()
+        super().__init__()
+        self.device = device
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i - 1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+        self.output = nn.Linear(hidden_units[-1], 1)
+        self.output.weight.data.uniform_(-init_w, init_w)
+        self.output.bias.data.uniform_(-init_w, init_w)
+        self.to(device)
+
+    def forward(self, state, action):
+        x = torch.cat([state, action], 1)
+        x = x.to(self.device)
+        h = self.fc_body(x)
+        q = self.output(h)
+        return q
+
+
+class PolicyNetworkContinuous(nn.Module):
+    def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu',
+                 init_w=3e-3, log_std_min=-20, log_std_max=2):
+        super(PolicyNetworkContinuous, self).__init__()
+        self.device = device
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
+
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i - 1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+
+        self.mean_linear = nn.Linear(hidden_units[-1], action_shape)
+        self.mean_linear.weight.data.uniform_(-init_w, init_w)
+        self.mean_linear.bias.data.uniform_(-init_w, init_w)
+
+        self.log_std_linear = nn.Linear(hidden_units[-1], action_shape)
+        self.log_std_linear.weight.data.uniform_(-init_w, init_w)
+        self.log_std_linear.bias.data.uniform_(-init_w, init_w)
+
+        self.to(device)
+
+    def forward(self, state):
+        h = self.fc_body(state)
+
+        mean = self.mean_linear(h)
+        log_std = self.log_std_linear(h)
+        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
+
+        return mean, log_std
+
+    def evaluate(self, state, epsilon=1e-6):
+        mean, log_std = self.forward(state)
+        std = log_std.exp()
+
+        normal = torch.distributions.Normal(0, 1)
+        z = normal.sample()
+        action = torch.tanh(mean + std * z.to(self.device))
+        log_prob = torch.distributions.Normal(mean, std).log_prob(mean + std * z.to(self.device)) - torch.log(1 - action.pow(2) + epsilon)
+        return action, log_prob, z, mean, log_std
+
+    def get_action(self, state):
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+        mean, log_std = self.forward(state)
+        std = log_std.exp()
+
+        normal = torch.distributions.Normal(0, 1)
+        z = normal.sample().to(self.device)
+        action = torch.tanh(mean + std * z)
+
+        action = action.detach().cpu().numpy()
+        return action[0]
