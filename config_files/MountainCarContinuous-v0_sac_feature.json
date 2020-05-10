@@ -1,0 +1,23 @@
+{
+  "task": "MountainCarContinuous-v0",
+  "seed": 1626,
+  "discount_factor": 0.99,
+  "grad_update_freq": 1,
+  "grad_clip": 1.0,
+  "value_net_lr": 3e-4,
+  "q_net_lr": 3e-4,
+  "policy_net_lr": 3e-4,
+  "target_network_mix": 1e-2,
+  "warm_up_steps": 1000,
+  "buffer_size": 10000,
+  "batch_size": 128,
+  "max_steps": 500,
+  "max_episodes": 1000,
+  "value_net_hidden_units": [128, 256],
+  "q_net_hidden_units": [256],
+  "policy_net_hidden_units": [256],
+  "eval_interval": 10,
+  "eval_episodes": 100,
+  "logdir": "tf_log",
+  "device": "cuda"
+}
