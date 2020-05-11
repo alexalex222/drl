@@ -16,7 +16,7 @@
   "value_net_hidden_units": [128, 256],
   "q_net_hidden_units": [256],
   "policy_net_hidden_units": [256],
-  "eval_interval": 10,
+  "eval_interval": 1000,
   "eval_episodes": 100,
   "logdir": "tf_log",
   "device": "cuda"
