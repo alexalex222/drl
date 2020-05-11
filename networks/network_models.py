@@ -206,23 +206,39 @@ class CategoricalActorCriticNet(nn.Module):
     def __init__(self,
                  state_shape,
                  action_shape,
-                 actor=None,
-                 critic=None,
+                 hidden_units=(128, 128, 128),
                  device='cpu'):
         super(CategoricalActorCriticNet, self).__init__()
-        if actor is None:
-            actor = MLPCategoricalActor(state_shape, action_shape, device=device)
-        if critic is None:
-            critic = MLPCritic(state_shape, device=device)
-        self.actor = actor
-        self.critic = critic
-
+        self.device = device
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i - 1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+        # both actor and critic share a common feature extractor
+        # actor computes the logits for actions
+        self.actor = nn.Linear(hidden_units[-1], action_shape)
+        self.actor.weight.data.uniform_(-1e-3, 1e-3)
+        self.actor.bias.data.uniform_(-1e-3, 1e-3)
+        # critic computes V(s)
+        self.critic = nn.Linear(hidden_units[-1], 1)
+        self.critic.weight.data.uniform_(-1e-3, 1e-3)
+        self.critic.bias.data.uniform_(-1e-3, 1e-3)
         self.to(device)
 
-    def forward(self, state):
-        action, log_prob, entropy = self.actor(state)
-        v = self.critic(state)
-        return {'a': action,
-                'log_prob': log_prob,
-                'entropy': entropy,
-                'v': v}
+    def forward(self, state, action=None):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        batch = state.shape[0]
+        # reshape the feature to [batch_size x state_shape]
+        state = state.view(batch, -1)
+        feature = self.fc_body(state)
+        logits = self.actor(feature)
+        value = self.critic(feature)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        return action, log_prob, entropy, value
