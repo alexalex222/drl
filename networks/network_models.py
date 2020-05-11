@@ -197,7 +197,7 @@ class PolicyNetworkContinuous(nn.Module):
         normal = torch.distributions.Normal(0, 1)
         z = normal.sample().to(self.device)
         action = torch.tanh(mean + std * z)
-
+        action = action.squeeze(0)
         action = action.detach().cpu().numpy()
         return action
 
