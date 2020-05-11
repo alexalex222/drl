@@ -8,7 +8,7 @@ from networks.network_models import VanillaQNet, VanillaQNetContinuous, PolicyNe
 from agents.sac_agent import SoftActorCriticAgent
 from utils.replay_buffers import BasicBuffer
 from utils.trainer import off_policy_trainer
-from utils.normalizer import RescaleNormalizer
+from utils.normalizer import NormalizedActions
 
 
 def run_sac():
@@ -23,7 +23,7 @@ def run_sac():
     config = json.load(open(config_file))
 
     # make an environment
-    env = gym.make(config['task'])
+    env = NormalizedActions(gym.make(config['task']))
     # get state shape
     if isinstance(env.observation_space, gym.spaces.discrete.Discrete):
         config['state_shape'] = env.observation_space.n

@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import gym
 
 
 def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, batch_count):
@@ -107,3 +108,23 @@ def modify_rwd(env, s):
     if env == 'MountainCar-v0':
         pos, vel = s
         return abs(pos - (-0.5))
+
+
+class NormalizedActions(gym.ActionWrapper):
+    def action(self, action):
+        low = self.action_space.low
+        high = self.action_space.high
+
+        action = low + (action + 1.0) * 0.5 * (high - low)
+        action = np.clip(action, low, high)
+
+        return action
+
+    def reverse_action(self, action):
+        low = self.action_space.low
+        high = self.action_space.high
+
+        action = 2 * (action - low) / (high - low) - 1
+        action = np.clip(action, low, high)
+
+        return action
