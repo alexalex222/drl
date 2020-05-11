@@ -48,6 +48,8 @@ def off_policy_trainer(env,
         for step in range(config['max_steps']):
             action = agent.get_action(state)
             if isinstance(env.observation_space, gym.spaces.box.Box):
+                # the action from policy net is between -1 and 1
+                # it is converted back to the raw action space range
                 action = (action + 1) / 2.0 * (env.action_space.high - env.action_space.low) + \
                          env.action_space.low
                 action = np.clip(action, env.action_space.low, env.action_space.high)

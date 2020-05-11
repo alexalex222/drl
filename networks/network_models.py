@@ -34,6 +34,57 @@ class VanillaQNet(nn.Module):
         return q, h
 
 
+class MLPCritic(nn.Module):
+    def __init__(self, state_shape, hidden_units=(128, 128, 128), device='cpu'):
+        super().__init__()
+        self.device = device
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i-1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+        self.output = nn.Linear(hidden_units[-1], 1)
+        self.to(device)
+
+    def forward(self, state):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        batch = state.shape[0]
+        state = state.view(batch, -1)
+        h = self.fc_body(state)
+        v = self.output(h)
+        return v
+
+
+class MLPCategoricalActor(nn.Module):
+    def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu'):
+        super().__init__()
+        self.device = device
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i-1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+        self.output = nn.Linear(hidden_units[-1], action_shape)
+        self.to(device)
+
+    def forward(self, state, action=None):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        batch = state.shape[0]
+        state = state.view(batch, -1)
+        h = self.fc_body(state)
+        logits = self.output(h)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        return action, log_prob, entropy
+
+
 class NatureConvQNet(nn.Module):
     def __init__(self, action_dim, device='cpu'):
         super(NatureConvQNet, self).__init__()
@@ -148,4 +199,30 @@ class PolicyNetworkContinuous(nn.Module):
         action = torch.tanh(mean + std * z)
 
         action = action.detach().cpu().numpy()
-        return action[0]
+        return action
+
+
+class CategoricalActorCriticNet(nn.Module):
+    def __init__(self,
+                 state_shape,
+                 action_shape,
+                 actor=None,
+                 critic=None,
+                 device='cpu'):
+        super(CategoricalActorCriticNet, self).__init__()
+        if actor is None:
+            actor = MLPCategoricalActor(state_shape, action_shape, device=device)
+        if critic is None:
+            critic = MLPCritic(state_shape, device=device)
+        self.actor = actor
+        self.critic = critic
+
+        self.to(device)
+
+    def forward(self, state):
+        action, log_prob, entropy = self.actor(state)
+        v = self.critic(state)
+        return {'a': action,
+                'log_prob': log_prob,
+                'entropy': entropy,
+                'v': v}
