@@ -41,10 +41,15 @@ class BasicBuffer:
         next_state_batch = []
         done_batch = []
 
-        min_start = len(self.buffer) - batch_size
-        start = np.random.randint(0, min_start)
+        if batch_size == 0:
+            start_idx = 0
+            end_idx = len(self.buffer)
+        else:
+            min_start = len(self.buffer) - batch_size
+            start_idx = np.random.randint(0, min_start)
+            end_idx = start_idx + batch_size
 
-        for i in range(start, start + batch_size):
+        for i in range(start_idx, end_idx):
             state, action, reward, next_state, done = self.buffer[i]
             state_batch.append(state)
             action_batch.append(action)
@@ -53,6 +58,9 @@ class BasicBuffer:
             done_batch.append(done)
 
         return state_batch, action_batch, reward_batch, next_state_batch, done_batch
+
+    def reset(self):
+        self.buffer.clear()
 
     def __len__(self):
         return len(self.buffer)
