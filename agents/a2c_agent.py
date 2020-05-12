@@ -42,17 +42,21 @@ class AdvantageActorCriticAgent(BaseAgent):
 
     def get_action(self, state):
         self.steps_done += 1
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
             logits = self.actor(state)
             dist = self.dist_fn(logits=logits)
             action = dist.sample()
+        action = action.detach().cpu().numpy()[0]
         return action
 
     def get_action_eval(self, state):
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
             logits = self.actor(state)
             dist = self.dist_fn(logits=logits)
             action = dist.sample()
+        action = action.detach().cpu().numpy()[0]
         return action
 
     def learn(self, full_batch, repeat=1, **kwargs):
@@ -93,7 +97,7 @@ class AdvantageActorCriticAgent(BaseAgent):
                 # [batch_size x 1]
                 values = self.critic(states)
                 a_loss = -(dist.log_prob(actions) * (returns - values).detach()).mean()
-                vf_loss = F.mse_loss(returns, values)
+                vf_loss = F.mse_loss(returns, values.reshape(-1))
                 ent_loss = dist.entropy().mean()
                 loss = a_loss + self._w_vf * vf_loss - self._w_ent * ent_loss
                 loss.backward()
