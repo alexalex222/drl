@@ -78,6 +78,9 @@ def off_policy_trainer(env,
                         writer.add_scalar('Loss/q_net_loss1', results_dict['q1_loss'], agent.steps_done)
                         writer.add_scalar('Loss/q_net_loss2', results_dict['q2_loss'], agent.steps_done)
                         writer.add_scalar('Loss/policy_net_loss', results_dict['policy_loss'], agent.steps_done)
+                    elif type(agent).__name__ == 'DeepDeterministicPolicyGradientAgent':
+                        writer.add_scalar('Loss/policy_loss', results_dict['policy_loss'], agent.steps_done)
+                        writer.add_scalar('Loss/critic_loss', results_dict['critic_loss'], agent.steps_done)
 
             if done:
                 break

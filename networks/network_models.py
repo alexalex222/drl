@@ -11,7 +11,16 @@ def layer_init(layer, w_scale=1.0):
     return layer
 
 
-class VanillaQNet(nn.Module):
+class DummyBody(nn.Module):
+    def __init__(self, state_dim):
+        super(DummyBody, self).__init__()
+        self.feature_dim = state_dim
+
+    def forward(self, x):
+        return x
+
+
+class MLPQNet(nn.Module):
     def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu'):
         super().__init__()
         self.device = device
@@ -80,6 +89,31 @@ class MLPActor(nn.Module):
         return logits
 
 
+class MLPActorContinuousDeterministic(nn.Module):
+    def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu'):
+        super().__init__()
+        self.device = device
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i-1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+        self.output = nn.Linear(hidden_units[-1], action_shape)
+        self.output.weight.data.uniform_(-1e-3, 1e-3)
+        self.output.bias.data.uniform_(-1e-3, 1e-3)
+        self.to(device)
+
+    def forward(self, state):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        batch = state.shape[0]
+        state = state.view(batch, -1)
+        h = self.output(self.fc_body(state))
+        action = torch.tanh(h)
+        return action
+
+
 class MLPCategoricalActor(nn.Module):
     def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu'):
         super().__init__()
@@ -144,9 +178,8 @@ class StandardGPModel(gpytorch.models.ExactGP):
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 
-class VanillaQNetContinuous(nn.Module):
+class MLPQNetContinuous(nn.Module):
     def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu', init_w=3e-3):
-        super(VanillaQNetContinuous, self).__init__()
         super().__init__()
         self.device = device
         self.sequential_model = [
@@ -265,3 +298,49 @@ class CategoricalActorCriticNet(nn.Module):
         log_prob = dist.log_prob(action).unsqueeze(-1)
         entropy = dist.entropy().unsqueeze(-1)
         return action, log_prob, entropy, value
+
+
+class DeterministicActorCriticContinuous(nn.Module):
+    def __init__(self,
+                 state_shape,
+                 action_shape,
+                 actor_hidden_units=(128, 128, 128),
+                 critic_hidden_units=(128, 128, 128),
+                 feature_extractor=None,
+                 device='cpu'):
+        super().__init__()
+        self.device = device
+        if feature_extractor is None:
+            feature_extractor = DummyBody(state_dim=state_shape)
+        self.feature_extractor = feature_extractor
+        # actor compute a = \mu(s)
+        self.actor = MLPActorContinuousDeterministic(state_shape=feature_extractor.feature_dim,
+                                                     action_shape=action_shape,
+                                                     hidden_units=actor_hidden_units,
+                                                     device=device)
+        # critic computes q(s, a)
+        self.critic = MLPQNetContinuous(state_shape=feature_extractor.feature_dim,
+                                        action_shape=action_shape,
+                                        hidden_units=critic_hidden_units,
+                                        device=device)
+
+        # actor parameters
+        self.actor_params = list(self.actor.parameters()) + list(self.feature_extractor.parameters())
+        # critic parameters
+        self.critic_params = list(self.critic.parameters()) + list(self.feature_extractor.parameters())
+        self.to(device)
+
+    def forward(self, state):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        phi = self.feature_extractor(state)
+        action = self.actor(phi)
+        return action
+
+    def act(self, phi):
+        action = self.actor(phi)
+        return action
+
+    def criticize(self, phi, action):
+        q, _ = self.critic(phi, action)
+        return q
