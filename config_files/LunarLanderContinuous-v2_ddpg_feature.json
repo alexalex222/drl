@@ -13,7 +13,7 @@
   "max_episodes": 1000,
   "actor_hidden_units": [256, 256],
   "critic_hidden_units": [256, 256],
-  "eval_interval": 1000,
+  "eval_interval": 20,
   "eval_episodes": 100,
   "logdir": "tf_log",
   "device": "cuda"
