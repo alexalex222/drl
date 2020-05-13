@@ -8,6 +8,7 @@
   "q_net_lr": 3e-4,
   "policy_net_lr": 3e-4,
   "target_network_mix": 1e-2,
+  "alpha": 0.2,
   "warm_up_steps": 1000,
   "buffer_size": 10000,
   "batch_size": 128,

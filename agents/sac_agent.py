@@ -45,6 +45,8 @@ class SoftActorCriticAgent(BaseAgent):
         self.q_optimizer2 = q_optimizer2
         # optimizer for policy network
         self.policy_optimizer = policy_optimizer
+        # entropy regularization coefficient
+        self.alpha = config['alpha']
         # discount factor
         self.gamma = config['discount_factor']
         # device: cpu or gpu
@@ -109,14 +111,14 @@ class SoftActorCriticAgent(BaseAgent):
 
         # update value_net based on Eq (5) and (6)
         predicted_new_q_values = torch.min(self.q_net1(states, new_actions)[0], self.q_net2(states, new_actions)[0])
-        target_value_func = predicted_new_q_values - log_probs
+        target_value_func = predicted_new_q_values - self.alpha * log_probs
         value_loss = F.mse_loss(predicted_values, target_value_func.detach())
         self.value_optimizer.zero_grad()
         value_loss.backward()
         self.value_optimizer.step()
 
         # update the policy net
-        policy_loss = (log_probs - predicted_new_q_values).mean()
+        policy_loss = (self.alpha * log_probs - predicted_new_q_values).mean()
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
         self.policy_optimizer.step()
