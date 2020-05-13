@@ -16,6 +16,7 @@ def run_ddpg():
     parser.add_argument('--env',
                         choices=['Pendulum-v0',
                                  'MountainCarContinuous-v0',
+                                 'LunarLanderContinuous-v2'
                                  ],
                         help='Choose an environment')
     args = parser.parse_args()

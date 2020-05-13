@@ -4,7 +4,7 @@ from datetime import datetime
 import gym
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from networks.network_models import VanillaQNet, VanillaQNetContinuous, PolicyNetworkContinuous
+from networks.network_models import MLPQNet, MLPQNetContinuous, PolicyNetworkContinuous
 from agents.sac_agent import SoftActorCriticAgent
 from utils.replay_buffers import BasicBuffer
 from utils.trainer import off_policy_trainer
@@ -16,6 +16,7 @@ def run_sac():
     parser.add_argument('--env',
                         choices=['Pendulum-v0',
                                  'MountainCarContinuous-v0',
+                                 'LunarLanderContinuous-v2'
                                  ],
                         help='Choose an environment')
     args = parser.parse_args()
@@ -37,18 +38,18 @@ def run_sac():
         config['action_shape'] = env.action_space.shape[0]
 
     # value network
-    value_net = VanillaQNet(state_shape=config['state_shape'],
-                            action_shape=1,
-                            hidden_units=tuple(config['value_net_hidden_units']),
-                            device=config['device'])
-    q_net1 = VanillaQNetContinuous(state_shape=config['state_shape'],
-                                   action_shape=config['action_shape'],
-                                   hidden_units=tuple(config['q_net_hidden_units']),
-                                   device=config['device'])
-    q_net2 = VanillaQNetContinuous(state_shape=config['state_shape'],
-                                   action_shape=config['action_shape'],
-                                   hidden_units=tuple(config['q_net_hidden_units']),
-                                   device=config['device'])
+    value_net = MLPQNet(state_shape=config['state_shape'],
+                        action_shape=1,
+                        hidden_units=tuple(config['value_net_hidden_units']),
+                        device=config['device'])
+    q_net1 = MLPQNetContinuous(state_shape=config['state_shape'],
+                               action_shape=config['action_shape'],
+                               hidden_units=tuple(config['q_net_hidden_units']),
+                               device=config['device'])
+    q_net2 = MLPQNetContinuous(state_shape=config['state_shape'],
+                               action_shape=config['action_shape'],
+                               hidden_units=tuple(config['q_net_hidden_units']),
+                               device=config['device'])
     policy_net = PolicyNetworkContinuous(state_shape=config['state_shape'],
                                          action_shape=config['action_shape'],
                                          hidden_units=tuple(config['policy_net_hidden_units']),
