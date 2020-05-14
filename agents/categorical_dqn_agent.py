@@ -25,6 +25,10 @@ class CategoricalDQNAgent(BaseAgent):
         # target q network
         self.target_q_net = deepcopy(self.q_net)
         self.target_q_net.eval()
+        # atoms
+        self.atoms = torch.linspace(config['v_min'], config['v_max'], steps=config['num_atoms']).to(config['device'])
+        # delta between atoms
+        self.delta_atom = (config['v_max'] - config['v_min']) / float(config['num_atoms'])
         # discount factor
         self.gamma = config['discount_factor']
         # frequency to udpate target q net
@@ -75,7 +79,8 @@ class CategoricalDQNAgent(BaseAgent):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
-            q, _ = self.q_net(state)
+            q_prob, _ = self.q_net(state)
+        q = (q_prob * self.atoms).sum(-1)
         action = q.max(dim=1)[1].item()
         return action
 
@@ -83,8 +88,9 @@ class CategoricalDQNAgent(BaseAgent):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
-            qvals, _ = self.q_net(state)
-        action = qvals.max(1)[1].item()
+            q_prob, _ = self.q_net(state)
+        q = (q_prob * self.atoms).sum(-1)
+        action = q.max(1)[1].item()
         return action
 
     def compute_loss(self, batch):
@@ -102,37 +108,29 @@ class CategoricalDQNAgent(BaseAgent):
 
         # compute the q values for next states
         with torch.no_grad():
-            next_q, _ = self.target_q_net(next_states)
+            next_q_prob, _ = self.target_q_net(next_states)
+        next_q_prob = next_q_prob.detach()
+        next_q = (next_q_prob * self.atoms).sum(-1)
+        next_a = torch.argmax(next_q, dim=-1)
+        next_q_prob = next_q_prob[self.batch_index, next_a, :]
 
-        if self.double_q:
-            self.q_net.eval()
-            with torch.no_grad():
-                # best_actions: shape [batch_size]
-                best_actions = torch.argmax(self.q_net(next_states)[0], dim=1)
-            # max_next_q: shape [batch_size]
-            max_next_q = next_q[self.batch_index, best_actions]
-            # expected_q: shape [batch_size]
-            expected_q = (rewards + self.gamma * max_next_q) * (torch.tensor([1]).to(self.device) - dones)
+        atoms_next = rewards + self.gamma * (1 - dones) * self.atoms.view(1, -1)
+        atoms_next.clamp_(self.config['v_min'], self.config['v_max'])
+        b = (atoms_next - self.config['v_min']) / self.delta_atom
+        l = b.floor()
+        u = b.ceil()
+        d_m_l = (u + (l == u).float() - b) * next_q_prob
+        d_m_u = (b - l) * next_q_prob
+        target_prob = torch.zeros(next_q_prob.shape).to(self.device)
 
-            self.q_net.train()
-            # curr_q_all: shape [batch_size x action_dim]
-            curr_q_all, _ = self.q_net(states)
-            # curr_q: shape[batch_size]
-            curr_q = curr_q_all[self.batch_index, actions]
-        else:
-            # max_next_q: shape [batch_size]
-            max_next_q = next_q.max(dim=1)[0].detach()
-            # expected_q: [batch_size]
-            expected_q = (rewards + self.gamma * max_next_q) * (torch.tensor([1]).to(self.device) - dones)
+        for i in range(target_prob.size(0)):
+            target_prob[i].index_add_(0, l[i].long(), d_m_l[i])
+            target_prob[i].index_add_(0, u[i].long(), d_m_u[i])
 
-            self.q_net.train()
-            # curr_q: shape [batch_size]
-            curr_q = self.q_net(states)[0][self.batch_index, actions]
-
-        # Compute Huber loss to handle outliers robustly
-        loss = F.smooth_l1_loss(curr_q, expected_q)
-        # MSE loss
-        # loss = F.mse_loss(curr_q, expected_q)
+        self.q_net.train()
+        _, log_prob = self.q_net(states)
+        log_prob = log_prob[self.batch_index, actions, :]
+        loss = -(target_prob * log_prob).sum(-1).mean()
         return loss
 
     def learn(self, batch, **kwargs):

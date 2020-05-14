@@ -26,6 +26,12 @@ class QuantileDQNAgent(BaseAgent):
         self.target_q_net.eval()
         # discount factor
         self.gamma = config['discount_factor']
+        # quantile weight
+        self.quantile_weight = 1.0 / config['num_quantiles']
+        # cumulative density
+        self.cumulative_density = torch.tensor(
+            (2 * np.arange(config['num_quantiles']) + 1) / (2.0 * config['num_quantiles']),
+            dtype=torch.float32, device=config['device']).view(1, -1)
         # frequency to udpate target q net
         self._target_update_freq = config['target_update_freq']
         # epsilon start value in training
@@ -74,7 +80,7 @@ class QuantileDQNAgent(BaseAgent):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         self.q_net.eval()
         with torch.no_grad():
-            q, _ = self.q_net(state)
+            q = self.q_net(state).mean(-1)
         action = q.max(dim=1)[1].item()
         return action
 
@@ -86,52 +92,35 @@ class QuantileDQNAgent(BaseAgent):
         action = qvals.max(1)[1].item()
         return action
 
+    def huber(self, x, k=1.0):
+        return torch.where(x.abs() < k, 0.5 * x.pow(2), k * (x.abs() - 0.5 * k))
+
     def compute_loss(self, batch):
         states, actions, rewards, next_states, dones = batch
         # states: shape [batch_size x state_dim]
         states = torch.tensor(states, dtype=torch.float32).to(self.device)
         # states: shape [batch_size]
         actions = torch.tensor(actions, dtype=torch.long).to(self.device)
-        # rewards: shape [batch_size]
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
+        # rewards: shape [batch_size x 1]
+        rewards = torch.tensor(rewards, dtype=torch.float32).unsqueeze(-1).to(self.device)
         # next_states: shape [batch_size x state_dim]
         next_states = torch.tensor(next_states, dtype=torch.float32).to(self.device)
-        # dones: shape [states]
-        dones = torch.tensor(dones, dtype=torch.float32).to(self.device)
+        # dones: shape [batch_size x 1]
+        dones = torch.tensor(dones, dtype=torch.float32).unsqueeze(-1).to(self.device)
 
         # compute the q values for next states
         with torch.no_grad():
-            next_q, _ = self.target_q_net(next_states)
+            next_q_quantiles = self.target_q_net(next_states).detach()
+        next_actions = torch.argmax(next_q_quantiles.mean(-1), dim=-1)
+        next_q_quantiles = next_q_quantiles[self.batch_index, next_actions, :]
+        next_q_quantiles = rewards + self.config.discount * (1 - dones) * next_q_quantiles
 
-        if self.double_q:
-            self.q_net.eval()
-            with torch.no_grad():
-                # best_actions: shape [batch_size]
-                best_actions = torch.argmax(self.q_net(next_states)[0], dim=1)
-            # max_next_q: shape [batch_size]
-            max_next_q = next_q[self.batch_index, best_actions]
-            # expected_q: shape [batch_size]
-            expected_q = (rewards + self.gamma * max_next_q) * (torch.tensor([1]).to(self.device) - dones)
-
-            self.q_net.train()
-            # curr_q_all: shape [batch_size x action_dim]
-            curr_q_all, _ = self.q_net(states)
-            # curr_q: shape[batch_size]
-            curr_q = curr_q_all[self.batch_index, actions]
-        else:
-            # max_next_q: shape [batch_size]
-            max_next_q = next_q.max(dim=1)[0].detach()
-            # expected_q: [batch_size]
-            expected_q = (rewards + self.gamma * max_next_q) * (torch.tensor([1]).to(self.device) - dones)
-
-            self.q_net.train()
-            # curr_q: shape [batch_size]
-            curr_q = self.q_net(states)[0][self.batch_index, actions]
-
-        # Compute Huber loss to handle outliers robustly
-        loss = F.smooth_l1_loss(curr_q, expected_q)
-        # MSE loss
-        # loss = F.mse_loss(curr_q, expected_q)
+        self.q_net.train()
+        q_quantiles = self.q_net(states)
+        q_quantiles = q_quantiles[self.batch_index, actions, :]
+        next_q_quantiles = next_q_quantiles.t().unsqueeze(-1)
+        diff = next_q_quantiles - q_quantiles
+        loss = self.huber(diff) * (self.cumulative_density - (diff.detach() < 0).float()).abs()
         return loss
 
     def learn(self, batch, **kwargs):

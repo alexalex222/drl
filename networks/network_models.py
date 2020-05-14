@@ -394,3 +394,55 @@ class GaussianActorCriticContinuous(nn.Module):
     def criticize(self, phi, action):
         q, _ = self.critic(phi, action)
         return q
+
+
+class MLPCategoricalQNet(nn.Module):
+    def __init__(self, state_shape, action_shape, num_atoms, hidden_units=(128, 128, 128), device='cpu'):
+        super().__init__()
+        self.device = device
+        self.atoms = num_atoms
+        self.action_shape = action_shape
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i-1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+        self.output = nn.Linear(hidden_units[-1], action_shape * num_atoms, bias=False)
+        self.to(device)
+
+    def forward(self, state):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        batch = state.shape[0]
+        state = state.view(batch, -1)
+        h = self.fc_body(state)
+        logits = self.output(h).view(self.action_shape, self.num_atoms)
+        prob = F.softmax(logits, dim=-1)
+        log_prob = F.log_softmax(logits, dim=-1)
+        return prob, log_prob
+
+
+class MLPQuantileQNet(nn.Module):
+    def __init__(self, state_shape, action_shape, num_quantiles, hidden_units=(128, 128, 128), device='cpu'):
+        super().__init__()
+        self.device = device
+        self.num_quantiles = num_quantiles
+        self.action_shape = action_shape
+        self.sequential_model = [
+            nn.Linear(state_shape, hidden_units[0]),
+            nn.ReLU()]
+        for i in range(1, len(hidden_units)):
+            self.sequential_model += [nn.Linear(hidden_units[i-1], hidden_units[i]), nn.ReLU()]
+        self.fc_body = nn.Sequential(*self.sequential_model)
+        self.output = nn.Linear(hidden_units[-1], action_shape * num_quantiles, bias=False)
+        self.to(device)
+
+    def forward(self, state):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        batch = state.shape[0]
+        state = state.view(batch, -1)
+        h = self.fc_body(state)
+        quantiles = self.output(h).view(-1, self.action_shape, self.num_quantiles)
+        return quantiles
