@@ -211,7 +211,7 @@ def off_policy_trainer_gp(env,
     return episode_rewards
 
 
-def a2c_policy_trainer(env,
+def on_policy_trainer(env,
                        agent,
                        replay_buffer,
                        writer,
@@ -289,7 +289,7 @@ def a2c_policy_trainer(env,
             results_dict = agent.learn(full_batch)
 
             writer.add_scalar('Loss/total_loss', results_dict['total_loss'], agent.steps_done)
-            writer.add_scalar('Loss/actor_loss', results_dict['actor_loss'], agent.steps_done)
+            writer.add_scalar('Loss/actor_loss', results_dict['policy_loss'], agent.steps_done)
             writer.add_scalar('Loss/value_loss', results_dict['value_loss'], agent.steps_done)
             writer.add_scalar('Loss/entropy_loss', results_dict['entropy_loss'], agent.steps_done)
 

@@ -50,10 +50,10 @@ class ProximalPolicyOptimizationAgent(BaseAgent):
         self.steps_done += 1
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            if type(self.dist_fn).__name__ == 'Categorical':
+            if self.dist_fn == torch.distributions.Categorical:
                 logits = self.actor(state)
                 dist = self.dist_fn(logits=logits)
-            elif type(self.dist_fn).__name__ == 'Normal':
+            elif self.dist_fn == torch.distributions.Normal:
                 mean, std = self.actor(state)
                 dist = self.dist_fn(mean, std)
             else:
@@ -61,16 +61,15 @@ class ProximalPolicyOptimizationAgent(BaseAgent):
             action = dist.sample()
             log_prob = dist.log_prob(action).sum(-1)
         action = action.detach().cpu().numpy()[0]
-        log_prob = log_prob.detach().cpu().numpy()
-        return action, log_prob
+        return action
 
     def get_action_eval(self, state):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            if type(self.dist_fn).__name__ == 'Categorical':
+            if self.dist_fn == torch.distributions.Categorical:
                 logits = self.actor(state)
                 dist = self.dist_fn(logits=logits)
-            elif type(self.dist_fn).__name__ == 'Normal':
+            elif self.dist_fn == torch.distributions.Normal:
                 mean, std = self.actor(state)
                 dist = self.dist_fn(mean, std)
             else:
@@ -79,28 +78,32 @@ class ProximalPolicyOptimizationAgent(BaseAgent):
         action = action.detach().cpu().numpy()[0]
         return action
 
-    def learn(self, full_batch, repeat=1, **kwargs):
+    def learn(self, full_batch, **kwargs):
         states_traj, actions_traj, rewards_traj, next_states_traj, dones_traj = full_batch
         returns_trajectory = self._calculate_returns(rewards_traj, dones_traj)
+        # returns : shape [batch_size x 1]
+        returns_trajectory = torch.tensor(returns_trajectory, dtype=torch.float32).to(self.device)
+        returns_trajectory = returns_trajectory.unsqueeze(-1)
         # states: shape [batch_size x state_dim]
         states_traj = torch.tensor(states_traj, dtype=torch.float32).to(self.device)
         # states: shape [batch_size]
         actions_traj = torch.tensor(actions_traj, dtype=torch.float32).to(self.device)
-        # returns : shape [batch_size]
-        returns_trajectory = torch.tensor(returns_trajectory, dtype=torch.float32).to(self.device)
+
         # compute old log_prob and old value
         with torch.no_grad():
             old_value_traj = self.critic(states_traj).detach()
             advantages_traj = returns_trajectory - old_value_traj
-            if type(self.dist_fn).__name__ == 'Categorical':
+            if self.dist_fn == torch.distributions.Categorical:
                 logits = self.actor(states_traj)
                 dist = self.dist_fn(logits=logits)
-            elif type(self.dist_fn).__name__ == 'Normal':
+                old_log_prob_traj = dist.log_prob(actions_traj).detach()
+            elif self.dist_fn == torch.distributions.Normal:
                 mean, std = self.actor(states_traj)
                 dist = self.dist_fn(mean, std)
+                old_log_prob_traj = dist.log_prob(actions_traj).sum(-1).detach()
             else:
                 raise ValueError('Wrong distribution function!')
-            old_log_prob_traj = dist.log_prob(actions_traj).sum(-1).detach()
+
 
         train_dataset = TensorDataset(states_traj,
                                       actions_traj,
@@ -108,22 +111,25 @@ class ProximalPolicyOptimizationAgent(BaseAgent):
                                       old_log_prob_traj,
                                       advantages_traj)
         train_loader = DataLoader(train_dataset, batch_size=self.config['batch_size'], shuffle=True)
+        repeat = self.config['optimization_epochs']
         for _ in range(repeat):
             for idx, (states, actions, returns, old_log_prob, advantages) in enumerate(train_loader):
-                if type(self.dist_fn).__name__ == 'Categorical':
+                if self.dist_fn == torch.distributions.Categorical:
                     logits = self.actor(states)
                     dist = self.dist_fn(logits=logits)
-                elif type(self.dist_fn).__name__ == 'Normal':
+                    log_prob = dist.log_prob(actions)
+                elif self.dist_fn == torch.distributions.Normal:
                     mean, std = self.actor(states)
                     dist = self.dist_fn(mean, std)
+                    log_prob = dist.log_prob(actions).sum(-1)
                 else:
                     raise ValueError('Wrong distribution function!')
 
-                log_prob = dist.log_prob(actions).sum(-1)
+
                 ratio = (log_prob - old_log_prob).exp()
                 obj = ratio * advantages
-                obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
-                                          1.0 + self.config.ppo_ratio_clip) * advantages
+                obj_clipped = ratio.clamp(1.0 - self.config['ratio_clip'],
+                                          1.0 + self.config['ratio_clip']) * advantages
                 policy_loss = -torch.min(obj, obj_clipped).mean()
                 entropy_loss = dist.entropy().mean()
                 values = self.critic(states)

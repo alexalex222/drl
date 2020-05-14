@@ -1,0 +1,23 @@
+{
+  "task": "CartPole-v1",
+  "seed": 1626,
+  "discount_factor": 0.99,
+  "grad_clip": 1.0,
+  "value_loss_weight": 0.5,
+  "entropy_loss_weight": 0.01,
+  "ratio_clip": 0.2,
+  "optimization_epochs": 10,
+  "lr": 3e-4,
+  "warm_up_steps": 1000,
+  "buffer_size": 10000,
+  "batch_size": 64,
+  "max_steps": 200,
+  "max_episodes": 1000,
+  "actor_hidden_units": [128, 128],
+  "critic_hidden_units": [128, 128],
+  "learn_interval": 3,
+  "eval_interval": 1000,
+  "eval_episodes": 100,
+  "logdir": "tf_log",
+  "device": "cuda"
+}
