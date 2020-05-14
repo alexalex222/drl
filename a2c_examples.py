@@ -4,7 +4,7 @@ from datetime import datetime
 import gym
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from networks.network_models import MLPActor, MLPCritic
+from networks.network_models import MLPCategoricalActor, MLPGaussianActor, MLPCritic
 from agents.a2c_agent import AdvantageActorCriticAgent
 from utils.replay_buffers import BasicBuffer
 from utils.trainer import a2c_policy_trainer
@@ -35,19 +35,26 @@ def run_a2c():
     # get action shape
     if isinstance(env.action_space, gym.spaces.discrete.Discrete):
         config['action_shape'] = env.action_space.n
+        actor = MLPCategoricalActor(state_shape=config['state_shape'],
+                                    action_shape=config['action_shape'],
+                                    hidden_units=tuple(config['hidden_units']),
+                                    device=config['device'])
         dist_fn = torch.distributions.Categorical
     elif isinstance(env.action_space, gym.spaces.box.Box):
         config['action_shape'] = env.action_space.shape[0]
+        actor = MLPGaussianActor(state_shape=config['state_shape'],
+                                 action_shape=config['action_shape'],
+                                 hidden_units=tuple(config['hidden_units']),
+                                 device=config['device'])
         dist_fn = torch.distributions.Normal
+    else:
+        raise ValueError('Undefined action space!')
 
     # model
     critic = MLPCritic(state_shape=config['state_shape'],
                        hidden_units=tuple(config['hidden_units']),
                        device=config['device'])
-    actor = MLPActor(state_shape=config['state_shape'],
-                     action_shape=config['action_shape'],
-                     hidden_units=tuple(config['hidden_units']),
-                     device=config['device'])
+
     # optimizer
     optim = torch.optim.Adam(list(actor.parameters()) + list(critic.parameters()), lr=config['lr'])
     # agent

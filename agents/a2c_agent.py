@@ -108,7 +108,7 @@ class AdvantageActorCriticAgent(BaseAgent):
 
         return {
             'total_loss': loss.item(),
-            'actor_loss': a_loss.item(),
+            'policy_loss': a_loss.item(),
             'value_loss': vf_loss.item(),
             'entropy_loss': ent_loss.item(),
         }

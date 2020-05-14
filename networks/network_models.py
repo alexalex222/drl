@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -66,7 +67,7 @@ class MLPCritic(nn.Module):
         return v
 
 
-class MLPActor(nn.Module):
+class MLPCategoricalActor(nn.Module):
     def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu'):
         super().__init__()
         self.device = device
@@ -79,7 +80,7 @@ class MLPActor(nn.Module):
         self.output = nn.Linear(hidden_units[-1], action_shape)
         self.to(device)
 
-    def forward(self, state, action=None):
+    def forward(self, state):
         if not isinstance(state, torch.Tensor):
             state = torch.tensor(state, device=self.device, dtype=torch.float)
         batch = state.shape[0]
@@ -114,7 +115,7 @@ class MLPActorContinuousDeterministic(nn.Module):
         return action
 
 
-class MLPCategoricalActor(nn.Module):
+class MLPGaussianActor(nn.Module):
     def __init__(self, state_shape, action_shape, hidden_units=(128, 128, 128), device='cpu'):
         super().__init__()
         self.device = device
@@ -122,24 +123,26 @@ class MLPCategoricalActor(nn.Module):
             nn.Linear(state_shape, hidden_units[0]),
             nn.ReLU()]
         for i in range(1, len(hidden_units)):
-            self.sequential_model += [nn.Linear(hidden_units[i-1], hidden_units[i]), nn.ReLU()]
+            self.sequential_model += [nn.Linear(hidden_units[i - 1], hidden_units[i]), nn.ReLU()]
         self.fc_body = nn.Sequential(*self.sequential_model)
-        self.output = nn.Linear(hidden_units[-1], action_shape)
+        self.mean_linear = nn.Linear(hidden_units[-1], action_shape)
+        self.mean_linear.weight.data.uniform_(-1e-3, 1e-3)
+        self.mean_linear.bias.data.uniform_(-1e-3, 1e-3)
+        # we use homoscedastic Gaussian noise
+        log_std = -0.5 * np.ones(action_shape, dtype=np.float32)
+        self.log_std = nn.Parameter(torch.as_tensor(log_std), requires_grad=True)
         self.to(device)
 
-    def forward(self, state, action=None):
+    def forward(self, state):
         if not isinstance(state, torch.Tensor):
             state = torch.tensor(state, device=self.device, dtype=torch.float)
         batch = state.shape[0]
+        # reshape the feature to [batch_size x state_shape]
         state = state.view(batch, -1)
         h = self.fc_body(state)
-        logits = self.output(h)
-        dist = torch.distributions.Categorical(logits=logits)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1)
-        entropy = dist.entropy().unsqueeze(-1)
-        return action, log_prob, entropy
+        mean = self.mean_linear(h)
+        std = torch.exp(self.log_std)
+        return mean, std
 
 
 class NatureConvQNet(nn.Module):
@@ -302,6 +305,52 @@ class CategoricalActorCriticNet(nn.Module):
 
 
 class DeterministicActorCriticContinuous(nn.Module):
+    def __init__(self,
+                 state_shape,
+                 action_shape,
+                 actor_hidden_units=(128, 128, 128),
+                 critic_hidden_units=(128, 128, 128),
+                 feature_extractor=None,
+                 device='cpu'):
+        super().__init__()
+        self.device = device
+        if feature_extractor is None:
+            feature_extractor = DummyBody(state_dim=state_shape)
+        self.feature_extractor = feature_extractor
+        # actor compute a = \mu(s)
+        self.actor = MLPActorContinuousDeterministic(state_shape=feature_extractor.feature_dim,
+                                                     action_shape=action_shape,
+                                                     hidden_units=actor_hidden_units,
+                                                     device=device)
+        # critic computes q(s, a)
+        self.critic = MLPQNetContinuous(state_shape=feature_extractor.feature_dim,
+                                        action_shape=action_shape,
+                                        hidden_units=critic_hidden_units,
+                                        device=device)
+
+        # actor parameters
+        self.actor_params = list(self.actor.parameters()) + list(self.feature_extractor.parameters())
+        # critic parameters
+        self.critic_params = list(self.critic.parameters()) + list(self.feature_extractor.parameters())
+        self.to(device)
+
+    def forward(self, state):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, device=self.device, dtype=torch.float)
+        phi = self.feature_extractor(state)
+        action = self.actor(phi)
+        return action
+
+    def act(self, phi):
+        action = self.actor(phi)
+        return action
+
+    def criticize(self, phi, action):
+        q, _ = self.critic(phi, action)
+        return q
+
+
+class GaussianActorCriticContinuous(nn.Module):
     def __init__(self,
                  state_shape,
                  action_shape,
