@@ -50,7 +50,7 @@ def run_categorical_dqn():
     agent = CategoricalDQNAgent(q_net=q_net, optimizer=optim, config=config)
     # log
     writer = SummaryWriter(config['logdir'] +
-                           '/' + 'categorical_dqn_' 
+                           '/' + 'categorical_dqn_'
                            + config['task'] + '_' + datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     # replay buffer
     replay_buffer = BasicBuffer(max_size=config['buffer_size'])
@@ -65,6 +65,7 @@ def run_categorical_dqn():
     # save q_net
     # torch.save(q_net.state_dict(), config['q_net_save_path'] + config['task'] + '_categorical_dqn' + '.pt')
     # writer.close()
+
 
 if __name__ == '__main__':
     run_categorical_dqn()

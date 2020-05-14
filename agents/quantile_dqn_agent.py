@@ -113,14 +113,15 @@ class QuantileDQNAgent(BaseAgent):
             next_q_quantiles = self.target_q_net(next_states).detach()
         next_actions = torch.argmax(next_q_quantiles.mean(-1), dim=-1)
         next_q_quantiles = next_q_quantiles[self.batch_index, next_actions, :]
-        next_q_quantiles = rewards + self.config.discount * (1 - dones) * next_q_quantiles
+        target_q_quantiles = rewards + self.gamma * (1 - dones) * next_q_quantiles
 
         self.q_net.train()
         q_quantiles = self.q_net(states)
         q_quantiles = q_quantiles[self.batch_index, actions, :]
-        next_q_quantiles = next_q_quantiles.t().unsqueeze(-1)
-        diff = next_q_quantiles - q_quantiles
+        target_q_quantiles = target_q_quantiles.t().unsqueeze(-1)
+        diff = target_q_quantiles - q_quantiles
         loss = self.huber(diff) * (self.cumulative_density - (diff.detach() < 0).float()).abs()
+        loss = loss.mean(0).mean(1).sum()
         return loss
 
     def learn(self, batch, **kwargs):

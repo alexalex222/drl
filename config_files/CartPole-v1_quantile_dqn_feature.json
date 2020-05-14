@@ -17,7 +17,7 @@
   "max_steps": 200,
   "max_episodes": 200,
   "hidden_units": [128, 128, 16],
-  "eval_interval": 10,
+  "eval_interval": 1000,
   "eval_episodes": 100,
   "logdir": "tf_log",
   "q_net_save_path": "results/q_net_",

@@ -70,7 +70,7 @@ def off_policy_trainer(env,
                 results_dict = agent.learn(batch_data)
 
                 if results_dict:
-                    if type(agent).__name__ == 'DQNAgent':
+                    if type(agent).__name__ == 'DQNAgent' or type(agent).__name__ == 'Categorical_DQNAgent':
                         writer.add_scalar('Q_Net_Loss', results_dict['q_net_loss'], agent.steps_done)
                         writer.add_scalar('Epsilon', results_dict['eps'], agent.steps_done)
                     elif type(agent).__name__ == 'SoftActorCriticAgent':
