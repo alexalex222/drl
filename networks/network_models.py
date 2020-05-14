@@ -140,7 +140,7 @@ class MLPGaussianActor(nn.Module):
         # reshape the feature to [batch_size x state_shape]
         state = state.view(batch, -1)
         h = self.fc_body(state)
-        mean = self.mean_linear(h)
+        mean = torch.tanh(self.mean_linear(h))
         std = torch.exp(self.log_std)
         return mean, std
 

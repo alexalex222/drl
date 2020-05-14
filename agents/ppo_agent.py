@@ -59,7 +59,6 @@ class ProximalPolicyOptimizationAgent(BaseAgent):
             else:
                 raise ValueError('Wrong distribution function!')
             action = dist.sample()
-            log_prob = dist.log_prob(action).sum(-1)
         action = action.detach().cpu().numpy()[0]
         return action
 
@@ -104,7 +103,6 @@ class ProximalPolicyOptimizationAgent(BaseAgent):
             else:
                 raise ValueError('Wrong distribution function!')
 
-
         train_dataset = TensorDataset(states_traj,
                                       actions_traj,
                                       returns_trajectory,
@@ -124,7 +122,6 @@ class ProximalPolicyOptimizationAgent(BaseAgent):
                     log_prob = dist.log_prob(actions).sum(-1)
                 else:
                     raise ValueError('Wrong distribution function!')
-
 
                 ratio = (log_prob - old_log_prob).exp()
                 obj = ratio * advantages
